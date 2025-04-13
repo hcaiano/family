@@ -1,4 +1,4 @@
-import { Loader2, LucideProps, type Icon as LucideIcon } from "lucide-react";
+import { LucideProps, type Icon as LucideIcon, Upload } from "lucide-react";
 
 // Simple Google Icon component (replace with a proper SVG or library later)
 const GoogleIcon = (props: LucideProps) => (
@@ -30,8 +30,8 @@ const GoogleIcon = (props: LucideProps) => (
 );
 
 export const Icons = {
-  spinner: Loader2,
   google: GoogleIcon,
-};
+  upload: Upload,
+} as const;
 
-export type Icon = LucideIcon;
+export type Icon = typeof LucideIcon;

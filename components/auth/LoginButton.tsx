@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Icons } from "@/components/icons"; // Assuming you'll create an icons component
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 
 export default function LoginButton() {
   const supabase = createClient();
@@ -36,7 +37,7 @@ export default function LoginButton() {
   return (
     <Button onClick={handleLogin} disabled={isLoading}>
       {isLoading ? (
-        <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
       ) : (
         <Icons.google className="mr-2 h-4 w-4" /> // Placeholder for Google icon
       )}

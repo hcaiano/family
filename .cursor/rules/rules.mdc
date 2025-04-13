@@ -1,0 +1,11 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+Here's things you have to use
+- pnpm
+- shadcn
+- tailwind 4
+- supabase
+- nextjs 15

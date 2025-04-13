@@ -3,8 +3,14 @@
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
+import { LogOut, Loader2 } from "lucide-react";
 import { useState } from "react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export default function LogoutButton() {
   const router = useRouter();
@@ -16,27 +22,35 @@ export default function LogoutButton() {
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error("Error logging out:", error.message);
-      // Optionally show an error message to the user
     } else {
-      router.push("/"); // Redirect to home page after logout
+      router.push("/auth/login"); // Redirect to login page after logout
       router.refresh(); // Ensure server components re-evaluate auth state
     }
     setLoading(false);
   };
 
   return (
-    <Button
-      variant="outline"
-      size="icon"
-      onClick={handleLogout}
-      disabled={loading}
-      aria-label="Log out"
-    >
-      {loading ? (
-        <LogOut className="h-4 w-4 animate-spin" />
-      ) : (
-        <LogOut className="h-4 w-4" />
-      )}
-    </Button>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleLogout}
+            disabled={loading}
+            aria-label="Log out"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <LogOut className="h-4 w-4" />
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>Log out</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
