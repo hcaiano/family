@@ -1,0 +1,88 @@
+---
+description: This is the initial plan of my application
+globs: 
+alwaysApply: false
+---
+
+Okay, this sounds like a very useful application! Managing expenses and invoices, especially across personal and business contexts, can be a real headache. Combining bank statement data with invoice scans and syncing to Dropbox is a smart workflow.
+
+Here’s a plan outlining how we can build this using Next.js and Supabase:
+
+**I. Core Architecture & Technology Choices**
+
+1.  **Frontend:** Next.js (using the App Router for modern features and structure). We'll use React for building the UI components and likely Tailwind CSS for styling, as it integrates well with Next.js.
+2.  **Backend & Database:** Supabase will serve as our Backend-as-a-Service (BaaS).
+    *   **Database:** Supabase's PostgreSQL database to store user info, bank accounts, transactions, and invoice metadata.
+    *   **Authentication:** Supabase Auth for handling user sign-up and login, specifically leveraging its built-in Google OAuth provider for you and your wife.
+    *   **Storage:** Supabase Storage to temporarily hold uploaded invoices (scans/PDFs/images) before they are processed and potentially synced to Dropbox.
+    *   **Edge Functions:** Supabase Edge Functions (Deno-based serverless functions) are ideal for backend logic like parsing bank statements, running the matching algorithm, and handling the Dropbox synchronization, keeping the core logic close to the database.
+3.  **Dropbox Integration:** We'll use the official Dropbox API to connect the user's account (via OAuth) and upload the processed invoices and relevant transaction data.
+4.  **No CMS Needed:** As you suspected, a traditional CMS isn't necessary here. Supabase provides the database and backend functionalities required. Your "content" is user-generated financial data, which fits well within a standard database structure.
+
+**II. Data Model (Supabase Tables)**
+
+We'll need a few key tables in our Supabase database:
+
+*   `profiles`: Extends Supabase Auth users. Stores user-specific info like `id` (linked to `auth.users`), `full_name`, `avatar_url`, and potentially Dropbox API tokens (encrypted).
+*   `bank_accounts`: To track linked accounts. Fields: `id`, `user_id` (FK to `profiles`), `name` (e.g., "Revolut Business", "BPI Personal"), `type` (e.g., "Revolut", "BPI"), `last_imported_at`.
+*   `transactions`: Stores entries from bank statements. Fields: `id`, `bank_account_id` (FK to `bank_accounts`), `user_id` (FK to `profiles`), `transaction_date`, `description`, `amount`, `currency`, `vendor_guess` (optional, auto-extracted or manual), `invoice_id` (FK to `invoices`, nullable), `status` ('unmatched', 'matched', 'ignored').
+*   `invoices`: Stores info about uploaded invoices. Fields: `id`, `user_id` (FK to `profiles`), `uploaded_at`, `storage_path` (path in Supabase Storage), `dropbox_path` (path in Dropbox after sync), `file_name`, `file_type`, `amount` (extracted or manually entered), `currency`, `vendor` (extracted or manually entered), `invoice_date`, `transaction_id` (FK to `transactions`, nullable), `status` ('pending_match', 'matched', 'match_failed').
+
+**III. Key Features & Implementation Strategy**
+
+1.  **Authentication (Supabase Auth):**
+    *   Set up Google OAuth provider in Supabase.
+    *   Implement login/logout flow in the Next.js app using Supabase's client library (`@supabase/auth-helpers-nextjs`).
+    *   Protect pages/routes so only logged-in users can access them.
+
+2.  **Bank Statement Upload & Parsing (Next.js Frontend -> Supabase Edge Function):**
+    *   Frontend UI: A simple form to select the bank account and upload the statement file (CSV/OFX).
+    *   Backend Logic (Edge Function):
+        *   Accepts the file upload.
+        *   Identifies the bank (Revolut/BPI) based on the associated account or file content.
+        *   Uses a parsing library (like `papaparse` for CSV, or potentially a dedicated OFX parser if needed) to extract transactions (date, description, amount, currency).
+        *   Inserts the extracted transactions into the `transactions` table, linked to the correct `bank_account_id` and `user_id`. Mark status as 'unmatched'.
+
+3.  **Invoice Upload (Next.js Frontend -> Supabase Storage -> Edge Function):**
+    *   Frontend UI: An interface allowing users to upload invoice files (images, PDFs) using their phone or computer. Could use a library like `react-dropzone`.
+    *   Initial Upload: Upload the file directly to Supabase Storage from the client.
+    *   Metadata Entry: After upload, prompt the user to confirm/enter key details like `amount`, `vendor`, and `invoice_date`. *Self-correction: Initially, I considered OCR, but manual entry is much simpler to start. We can add OCR later as an enhancement.*
+    *   Backend Logic (Edge Function triggered by Storage event or called from frontend):
+        *   Creates an entry in the `invoices` table with the metadata and the `storage_path`. Mark status as 'pending_match'.
+
+4.  **Invoice-Transaction Matching (Supabase Edge Function):**
+    *   Trigger: This function can be triggered whenever a new 'unmatched' transaction is added or a new 'pending_match' invoice is added.
+    *   Logic:
+        *   Query relevant 'unmatched' transactions and 'pending_match' invoices for the user.
+        *   Attempt matching based on:
+            *   Exact `amount` match.
+            *   Close `vendor` name match (using string similarity algorithms if `vendor_guess` is available on transaction and `vendor` on invoice).
+            *   `transaction_date` being close to `invoice_date`.
+        *   If a confident match is found: Update the `status` on both records to 'matched', and link them using `invoice_id` and `transaction_id`.
+        *   If no match: Keep statuses as they are. We'll need a UI for manual matching later.
+
+5.  **Manual Matching UI (Next.js Frontend):**
+    *   Display lists of unmatched transactions and unmatched invoices.
+    *   Allow users to select one transaction and one invoice and manually link them. This will update the database records accordingly.
+
+6.  **Dropbox Synchronization (Supabase Scheduled Edge Function):**
+    *   Setup: Users will need to authenticate with Dropbox via OAuth once in the app settings. Store the resulting access token securely (e.g., encrypted in the `profiles` table using Supabase secrets).
+    *   Logic (Scheduled Function, e.g., runs every 10 minutes):
+        *   Query for `invoices` with status 'matched' that haven't been synced yet (check `dropbox_path` is null or use a dedicated sync status flag).
+        *   For each invoice, fetch the corresponding transaction details.
+        *   Define a clear folder structure in Dropbox (e.g., `/ExpenseApp/YYYY/MM/Vendor/`).
+        *   Use the Dropbox API to upload the invoice file from Supabase Storage to the designated Dropbox path.
+        *   Optionally, upload a small metadata file (e.g., `invoice_details.json`) alongside the invoice with transaction info.
+        *   Update the `dropbox_path` field (or sync status flag) in the `invoices` table upon successful upload.
+
+**IV. Development Phases (Suggestion)**
+
+1.  **Phase 1: Core Setup & Auth:** Next.js project, Supabase setup, Google Auth working.
+2.  **Phase 2: Invoice Upload & Storage:** Build the invoice upload UI and logic to store files in Supabase Storage and metadata in the DB.
+3.  **Phase 3: Statement Upload & Parsing:** Build statement upload UI and the Edge Function parser for one bank format (e.g., Revolut CSV).
+4.  **Phase 4: Basic Matching & Display:** Implement the core matching logic (amount-based first) and display transactions/invoices with their status.
+5.  **Phase 5: Manual Matching:** Build the UI for manual linking.
+6.  **Phase 6: Dropbox Integration:** Implement Dropbox OAuth and the scheduled sync function.
+7.  **Phase 7: Refinements:** Add support for the second bank format (BPI), improve matching logic (vendor/date), enhance UI/UX, add error handling.
+
+This plan provides a solid foundation using Next.js and Supabase. The key challenges will be handling the variations in bank statement formats and refining the automatic matching logic for accuracy. Starting simple and iterating is a good approach. What do you think of this plan?
