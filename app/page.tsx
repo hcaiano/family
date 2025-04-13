@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface Transaction {
   id: string;
@@ -74,34 +76,26 @@ export default function TransactionsPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Transactions</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage your transactions and match them with invoices
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/statements/upload">
-            <Upload className="mr-2 h-4 w-4" />
-            Import Statement
-          </Link>
-        </Button>
-      </div>
+      <PageHeader
+        title="Transactions"
+        description="Manage your transactions and match them with invoices"
+        action={{
+          label: "Import Statement",
+          href: "/statements/upload",
+          icon: Upload,
+        }}
+      />
 
       {transactions.length === 0 ? (
-        <div className="rounded-lg border-2 border-dashed p-12 text-center">
-          <h3 className="text-lg font-semibold">No transactions yet</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Import a bank statement to get started
-          </p>
-          <Button asChild className="mt-4">
-            <Link href="/statements/upload">
-              <Upload className="mr-2 h-4 w-4" />
-              Import Statement
-            </Link>
-          </Button>
-        </div>
+        <EmptyState
+          title="No transactions yet"
+          description="Import a bank statement to get started"
+          action={{
+            label: "Import Statement",
+            href: "/statements/upload",
+            icon: Upload,
+          }}
+        />
       ) : (
         <div className="rounded-lg border bg-card">
           <div className="overflow-x-auto">
@@ -148,9 +142,8 @@ export default function TransactionsPage() {
                     </td>
                     <td className="p-4 text-sm text-right">
                       <Button
-                        variant="ghost"
+                        variant="link"
                         size="sm"
-                        className="text-blue-600 hover:text-blue-700"
                         onClick={() => {
                           /* TODO: Implement match invoice action */
                         }}

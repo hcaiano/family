@@ -20,7 +20,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
 
 type BankType = "REVOLUT" | "BPI";
@@ -29,84 +28,61 @@ export default function UploadStatementPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedBankType, setSelectedBankType] = useState<BankType | "">("");
   const [isUploading, setIsUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const supabase = createClient();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
-      setError(null);
     }
   };
 
   const handleUpload = async () => {
     if (!selectedFile || !selectedBankType) {
-      setError("Please select a file and bank type");
+      toast.error("Please select a file and bank type");
       return;
     }
 
     setIsUploading(true);
-    setError(null);
 
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session?.user) {
-        setError("Please log in to upload statements.");
+        toast.error("Please log in to upload statements");
         return;
       }
 
-      // Upload file to Supabase Storage
+      // Upload file
       const fileExt = selectedFile.name.split(".").pop();
       const fileName = `${
         sessionData.session.user.id
       }/${Math.random()}.${fileExt}`;
 
-      console.log("Uploading file to storage:", {
-        fileName,
-        fileSize: selectedFile.size,
-        fileType: selectedFile.type,
-      });
-
       const { error: uploadError } = await supabase.storage
         .from("statements")
         .upload(fileName, selectedFile);
 
-      if (uploadError) {
-        console.error("Storage upload error:", uploadError);
-        throw uploadError;
-      }
+      if (uploadError) throw uploadError;
 
-      console.log("File uploaded successfully");
-
-      // Create statement record in database
-      const { error: dbError, data: statementData } = await supabase
+      // Create statement record
+      const { error: statementError } = await supabase
         .from("statements")
         .insert({
           user_id: sessionData.session.user.id,
-          filename: selectedFile.name,
           storage_path: fileName,
           source_bank: selectedBankType,
-          status: "processing",
-          transactions_count: 0,
+          filename: selectedFile.name,
           uploaded_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
+        });
 
-      if (dbError) {
-        console.error("Database insert error:", dbError);
-        throw dbError;
-      }
+      if (statementError) throw statementError;
 
-      console.log("Statement record created:", statementData);
-
-      // Call process-statement API endpoint
+      // Call process-statement API endpoint to trigger background processing
       const payload = {
-        storagePath: fileName,
+        storagePath: fileName, // Use the correct storage path variable
         bankType: selectedBankType,
       };
-      console.log("Calling process-statement API with:", payload);
+      console.log("Calling /api/process-statement with payload:", payload);
 
       const response = await fetch("/api/process-statement", {
         method: "POST",
@@ -116,35 +92,29 @@ export default function UploadStatementPage() {
         body: JSON.stringify(payload),
       });
 
-      console.log("API Response status:", response.status);
-
+      // Check if the API call itself was successful (e.g., 200 OK)
+      // The API route will handle the actual processing asynchronously
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error("API Error response:", errorText);
+        // Try to parse the error response from the API
+        let apiError = "Failed to start statement processing.";
         try {
-          const errorData = JSON.parse(errorText);
-          throw new Error(errorData.error || "Failed to process statement");
-        } catch (e) {
-          throw new Error("Failed to process statement: " + errorText);
+          const errorData = await response.json();
+          apiError = errorData.error || apiError;
+        } catch (parseError) {
+          // If parsing fails, use the status text
+          apiError = response.statusText;
         }
+        console.error("API call failed:", response.status, apiError);
+        throw new Error(apiError);
       }
 
-      const responseData = await response.json();
-      console.log("API Response data:", responseData);
-
-      toast.success("Statement Uploaded", {
-        description:
-          "Your statement is being processed. You'll be notified when it's done.",
+      toast.success("Statement upload started", {
+        description: "Processing will happen in the background.",
       });
-
       router.push("/statements");
     } catch (err: any) {
-      console.error("Error in upload:", err);
-      const errorMessage = err.message || "An unexpected error occurred";
-      setError(errorMessage);
-      toast.error("Upload Failed", {
-        description: errorMessage,
-      });
+      console.error("Upload failed:", err);
+      toast.error(err.message || "Failed to upload statement");
     } finally {
       setIsUploading(false);
     }
@@ -161,8 +131,8 @@ export default function UploadStatementPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-6">
-              <div className="space-y-2">
+            <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+              <div>
                 <Label htmlFor="bank">Select Bank</Label>
                 <Select
                   value={selectedBankType}
@@ -180,7 +150,7 @@ export default function UploadStatementPage() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
+              <div>
                 <Label htmlFor="file">Statement File</Label>
                 <div
                   className={`border-2 border-dashed rounded-lg p-8 text-center ${
@@ -222,16 +192,11 @@ export default function UploadStatementPage() {
                 </div>
               </div>
 
-              {error && (
-                <div className="rounded-lg bg-red-50 p-4">
-                  <p className="text-sm text-red-600">{error}</p>
-                </div>
-              )}
-
               <div className="flex justify-end space-x-4">
                 <Button
                   variant="outline"
                   onClick={() => router.push("/statements")}
+                  disabled={isUploading}
                 >
                   Cancel
                 </Button>
@@ -252,7 +217,7 @@ export default function UploadStatementPage() {
                   )}
                 </Button>
               </div>
-            </div>
+            </form>
           </CardContent>
         </Card>
       </div>

@@ -1,21 +1,19 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, Upload, Trash2, X } from "lucide-react";
-import Link from "next/link";
-import { cn } from "@/lib/utils";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { formatCurrency } from "@/lib/utils";
+import { Upload, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,20 +24,33 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { formatDistanceToNow } from "date-fns";
+import { formatCurrency } from "@/lib/utils";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+// import type { Database } from "@/types/database"; // Assuming this path is correct now - REMOVED
 
-interface Statement {
+// Define the simplified Statement type locally
+type Statement = {
   id: string;
-  filename: string;
-  uploaded_at: string;
-  source_bank: "REVOLUT" | "BPI";
-  status: "processing" | "completed" | "error";
-  transactions_count: number;
-  error_message?: string;
-  total_amount?: number;
-  currency?: string;
+  user_id: string;
+  filename: string | null;
   storage_path: string;
-}
+  source_bank: string | null;
+  transactions_count: number | null; // Count might be null initially
+  created_at: string;
+  updated_at: string;
+  uploaded_at: string;
+};
 
+// Re-add StatementDetails type
 interface StatementDetails {
   transactions: Array<{
     transaction_date: string;
@@ -56,430 +67,281 @@ interface StatementDetails {
 
 export default function StatementsPage() {
   const [statements, setStatements] = useState<Statement[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedStatement, setSelectedStatement] = useState<Statement | null>(
+  const [statementToDelete, setStatementToDelete] = useState<Statement | null>(
     null
   );
-  const [statementToDelete, setStatementToDelete] = useState<Statement | null>(
+  // Re-add state for details view
+  const [selectedStatement, setSelectedStatement] = useState<Statement | null>(
     null
   );
   const [statementDetails, setStatementDetails] =
     useState<StatementDetails | null>(null);
   const [isDetailsLoading, setIsDetailsLoading] = useState(false);
+
   const supabase = createClient();
 
-  const fetchStatements = async () => {
+  const fetchStatements = useCallback(async () => {
+    console.log("🚀 Fetching statements...");
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session?.user) {
-        setError("Please log in to view statements.");
-        setIsLoading(false);
+        console.log("No user session found, skipping fetch.");
+        setStatements([]);
         return;
       }
 
-      const { data, error: fetchError } = await supabase
+      const { data, error } = await supabase
         .from("statements")
-        .select("*")
+        .select("*") // Select all columns directly from statements table
         .eq("user_id", sessionData.session.user.id)
         .order("uploaded_at", { ascending: false });
 
-      if (fetchError) throw fetchError;
+      if (error) throw error;
+
+      console.log("✅ Statements fetched:", JSON.stringify(data, null, 2));
       setStatements(data || []);
     } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
+      console.error("Error fetching statements:", err);
+      toast.error("Failed to fetch statements");
+      setStatements([]); // Clear statements on error
     }
-  };
+  }, [supabase]);
 
   useEffect(() => {
     fetchStatements();
-  }, []);
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("statements")
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "statements",
-        },
-        (payload) => {
-          const updatedStatement = payload.new as Statement;
-          if (updatedStatement.status === "completed") {
-            toast.success("Statement Processed", {
-              description: `Successfully processed ${updatedStatement.transactions_count} transactions`,
-            });
-          } else if (updatedStatement.status === "error") {
-            toast.error("Processing Error", {
-              description:
-                updatedStatement.error_message ||
-                "An error occurred while processing the statement",
-            });
-          }
-          // Update the statement in the list
-          setStatements((prev) =>
-            prev.map((s) =>
-              s.id === updatedStatement.id ? updatedStatement : s
-            )
-          );
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [supabase]);
+  }, [fetchStatements]);
 
   const handleDelete = async (statement: Statement) => {
+    // Keep delete logic as is - it seems to work now
+    console.log(
+      `Attempting to delete statement ID: ${statement.id}, Path: ${statement.storage_path}`
+    );
     try {
-      // First delete associated transactions
-      const { error: transactionsError } = await supabase
-        .from("transactions")
-        .delete()
-        .eq("source_bank", statement.source_bank)
-        .eq("source_id", statement.storage_path);
+      // 1. Delete associated transactions
+      console.log(
+        `Deleting transactions with source_bank=${statement.source_bank} and source_id=${statement.storage_path}...`
+      );
+      const { data: deletedTransactions, error: transactionsError } =
+        await supabase
+          .from("transactions")
+          .delete()
+          .eq("source_bank", statement.source_bank)
+          .eq("source_id", statement.storage_path)
+          .select("id");
 
       if (transactionsError) {
-        console.error("Error deleting transactions:", transactionsError);
-        throw transactionsError;
+        console.error("Transaction Deletion Failed:", transactionsError);
+        throw new Error(
+          `Transaction Deletion Failed: ${transactionsError.message}`
+        );
       }
+      console.log(`Deleted ${deletedTransactions?.length || 0} transactions.`);
 
-      // Then delete the file from storage
-      const { error: storageError } = await supabase.storage
-        .from("statements")
-        .remove([statement.storage_path]);
-
-      if (storageError) {
-        console.error("Error deleting file from storage:", storageError);
-        throw storageError;
-      }
-
-      // Finally delete the statement record
+      // 2. Delete the statement record from database
+      console.log("Deleting statement record from database...");
       const { error: dbError } = await supabase
         .from("statements")
         .delete()
         .eq("id", statement.id);
 
       if (dbError) {
-        console.error("Error deleting statement record:", dbError);
-        throw dbError;
+        console.error("Statement Record Deletion Failed:", dbError);
+        throw new Error(`Statement Record Deletion Failed: ${dbError.message}`);
+      }
+      console.log("Statement record deleted successfully.");
+
+      // 3. Delete the file from storage
+      console.log("Deleting storage file...");
+      const { error: storageError } = await supabase.storage
+        .from("statements")
+        .remove([statement.storage_path]);
+
+      if (storageError) {
+        console.warn("Storage Deletion Failed (non-critical?):", storageError);
+      } else {
+        console.log("Storage file deleted successfully.");
       }
 
-      // Remove the statement from local state
+      // 4. Only update UI state *after* all critical operations succeed
+      console.log("Updating UI state...");
       setStatements((prev) => prev.filter((s) => s.id !== statement.id));
-
-      // Close the details modal if it's open for this statement
-      if (selectedStatement?.id === statement.id) {
-        setSelectedStatement(null);
-      }
-
-      toast.success("Statement Deleted", {
-        description: `Successfully deleted statement "${statement.filename}" and its transactions`,
-      });
+      toast.success("Statement deleted successfully");
+      setStatementToDelete(null);
     } catch (err: any) {
-      console.error("Delete operation failed:", err);
-      setError(`Failed to delete statement: ${err.message}`);
-      toast.error("Delete Failed", {
-        description: err.message || "Failed to delete statement",
-      });
+      console.error("handleDelete Error:", err);
+      const errorMessage = err.message || String(err);
+      toast.error(
+        `Failed to delete statement: ${errorMessage}. Please try again.`
+      );
+      setStatementToDelete(null);
+
+      console.log("Refreshing statement list due to error...");
+      fetchStatements();
     }
   };
 
+  // Re-add handleViewDetails function
   const handleViewDetails = async (statement: Statement) => {
     setSelectedStatement(statement);
     setIsDetailsLoading(true);
+    setStatementDetails(null); // Clear previous details
     try {
       const { data: transactions, error: fetchError } = await supabase
         .from("transactions")
         .select("transaction_date, description, amount, currency")
         .eq("source_bank", statement.source_bank)
-        .eq("source_id", statement.storage_path)
+        .eq("source_id", statement.storage_path) // Use storage_path as source_id
         .order("transaction_date", { ascending: false });
 
-      if (fetchError) throw fetchError;
-
-      if (!transactions || transactions.length === 0) {
-        setStatementDetails(null);
-        return;
+      if (fetchError) {
+        console.error("Failed to fetch transactions for details:", fetchError);
+        throw fetchError;
       }
 
-      // Group transactions by currency
-      const groupedByCurrency = transactions.reduce((acc, t) => {
-        if (!acc[t.currency]) {
-          acc[t.currency] = {
-            total_amount: 0,
-            count: 0,
-          };
-        }
-        acc[t.currency].total_amount += t.amount;
-        acc[t.currency].count += 1;
-        return acc;
-      }, {} as Record<string, { total_amount: number; count: number }>);
+      if (!transactions || transactions.length === 0) {
+        console.log(
+          "No transactions found for this statement via details view."
+        );
+        setStatementDetails({
+          transactions: [],
+          summary: { total_amount: 0, currency: "", count: 0 },
+        });
+        return; // Important to return here if none found
+      }
 
-      // Use the currency with the most transactions as the main currency
-      const mainCurrency = Object.entries(groupedByCurrency).sort(
-        (a, b) => b[1].count - a[1].count
-      )[0][0];
+      // Calculate totals directly from fetched transactions
+      const total = transactions.reduce((sum, t) => sum + t.amount, 0);
+      const calculatedSummary = {
+        total_amount: total,
+        currency: transactions[0]?.currency || "", // Handle case of empty array somehow?
+        count: transactions.length,
+      };
 
       setStatementDetails({
         transactions: transactions,
-        summary: {
-          total_amount: groupedByCurrency[mainCurrency].total_amount,
-          currency: mainCurrency,
-          count: transactions.length,
-        },
+        summary: calculatedSummary,
       });
     } catch (err: any) {
-      console.error("Error loading statement details:", err);
-      setError(`Failed to load statement details: ${err.message}`);
+      console.error("Failed to load details:", err);
+      toast.error(`Failed to load statement details: ${err.message}`);
+      setStatementDetails(null); // Clear details on error
     } finally {
       setIsDetailsLoading(false);
     }
   };
 
-  const confirmDelete = (statement: Statement) => {
-    setStatementToDelete(statement);
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="rounded-lg bg-red-50 p-4">
-          <p className="text-red-600">{error}</p>
-        </div>
-      </div>
-    );
-  }
+  // Log data used for rendering
+  console.log(
+    "Rendering statements table with data:",
+    JSON.stringify(statements, null, 2)
+  );
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Bank Statements</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Upload and manage your bank statements
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/statements/upload">
-            <Upload className="mr-2 h-4 w-4" />
-            Upload Statement
-          </Link>
-        </Button>
-      </div>
+      <PageHeader
+        title="Bank Statements"
+        description="Manage your bank statements and import transactions"
+        action={{
+          label: "Upload Statement",
+          href: "/statements/upload",
+          icon: Upload,
+        }}
+      />
 
       {statements.length === 0 ? (
-        <div className="rounded-lg border-2 border-dashed p-12 text-center">
-          <h3 className="text-lg font-semibold">No statements uploaded</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Upload your first bank statement to get started
-          </p>
-          <Button asChild className="mt-4">
-            <Link href="/statements/upload">
-              <Upload className="mr-2 h-4 w-4" />
-              Upload Statement
-            </Link>
-          </Button>
-        </div>
+        <EmptyState
+          title="No statements yet"
+          description="Upload your first bank statement to get started"
+          action={{
+            label: "Upload Statement",
+            href: "/statements/upload",
+            icon: Upload,
+          }}
+        />
       ) : (
-        <div className="rounded-lg border bg-card">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left p-4 font-medium">Filename</th>
-                  <th className="text-left p-4 font-medium">Bank</th>
-                  <th className="text-left p-4 font-medium">Uploaded</th>
-                  <th className="text-left p-4 font-medium">Status</th>
-                  <th className="text-left p-4 font-medium">Transactions</th>
-                  <th className="text-right p-4 font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {statements.map((statement) => (
-                  <tr key={statement.id} className="border-b last:border-0">
-                    <td className="p-4 text-sm">{statement.filename}</td>
-                    <td className="p-4 text-sm">{statement.source_bank}</td>
-                    <td className="p-4 text-sm">
-                      {new Date(statement.uploaded_at).toLocaleDateString()}
-                    </td>
-                    <td className="p-4 text-sm">
-                      <span
-                        className={cn(
-                          "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium",
-                          {
-                            "bg-green-50 text-green-700":
-                              statement.status === "completed",
-                            "bg-yellow-50 text-yellow-700":
-                              statement.status === "processing",
-                            "bg-red-50 text-red-700":
-                              statement.status === "error",
-                          }
-                        )}
-                      >
-                        {statement.status.charAt(0).toUpperCase() +
-                          statement.status.slice(1)}
-                        {statement.status === "error" &&
-                          statement.error_message && (
-                            <span className="ml-1 text-xs">
-                              ({statement.error_message})
-                            </span>
-                          )}
-                      </span>
-                    </td>
-                    <td className="p-4 text-sm">
-                      {statement.transactions_count > 0 ? (
-                        <span>
-                          {statement.transactions_count} transactions
-                          {statement.total_amount && statement.currency && (
-                            <span className="text-muted-foreground ml-1">
-                              (
-                              {formatCurrency(
-                                statement.total_amount,
-                                statement.currency
-                              )}
-                              )
-                            </span>
-                          )}
-                        </span>
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Filename</TableHead>
+                <TableHead>Bank</TableHead>
+                <TableHead>Uploaded</TableHead>
+                <TableHead className="text-right">Transactions</TableHead>
+                <TableHead className="w-[100px]">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {statements.map((statement) => (
+                <TableRow key={statement.id}>
+                  <TableCell className="font-medium">
+                    {statement.filename}
+                  </TableCell>
+                  <TableCell>{statement.source_bank}</TableCell>
+                  <TableCell>
+                    {statement.uploaded_at
+                      ? formatDistanceToNow(new Date(statement.uploaded_at), {
+                          addSuffix: true,
+                        })
+                      : "N/A"}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {/* Directly display the count from the statement record */}
+                    {statement.transactions_count ?? 0} transactions
+                  </TableCell>
+                  <TableCell>
+                    {/* Re-add View Details Button */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleViewDetails(statement)}
+                      disabled={
+                        isDetailsLoading &&
+                        selectedStatement?.id === statement.id
+                      }
+                    >
+                      {isDetailsLoading &&
+                      selectedStatement?.id === statement.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        "No transactions"
+                        "View Details"
                       )}
-                    </td>
-                    <td className="p-4 text-sm text-right space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleViewDetails(statement)}
-                        className="text-blue-600 hover:text-blue-700"
-                      >
-                        View Details
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => confirmDelete(statement)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-500 hover:text-red-700 ml-2" // Added margin
+                      onClick={() => setStatementToDelete(statement)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
 
-      <Dialog
-        open={!!selectedStatement}
-        onOpenChange={() => setSelectedStatement(null)}
-      >
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Statement Details</DialogTitle>
-            <DialogDescription>
-              {selectedStatement?.filename} - {selectedStatement?.source_bank}
-            </DialogDescription>
-          </DialogHeader>
-          {isDetailsLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          ) : statementDetails ? (
-            <div className="space-y-4">
-              <div className="rounded-lg bg-muted p-4">
-                <h3 className="font-medium mb-2">Summary</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Total Amount
-                    </p>
-                    <p className="text-lg font-medium">
-                      {formatCurrency(
-                        statementDetails.summary.total_amount,
-                        statementDetails.summary.currency
-                      )}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Total Transactions
-                    </p>
-                    <p className="text-lg font-medium">
-                      {statementDetails.summary.count}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="max-h-96 overflow-y-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-2 font-medium">Date</th>
-                      <th className="text-left p-2 font-medium">Description</th>
-                      <th className="text-right p-2 font-medium">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {statementDetails.transactions.map((t, i) => (
-                      <tr key={i} className="border-b last:border-0">
-                        <td className="p-2 text-sm">
-                          {new Date(t.transaction_date).toLocaleDateString()}
-                        </td>
-                        <td className="p-2 text-sm">{t.description}</td>
-                        <td className="p-2 text-sm text-right">
-                          {formatCurrency(t.amount, t.currency)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">
-              No transactions found for this statement.
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
+      {/* Delete Confirmation Dialog */}
       <AlertDialog
         open={!!statementToDelete}
         onOpenChange={(open) => !open && setStatementToDelete(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the statement "
-              {statementToDelete?.filename}" and all its transactions. This
-              action cannot be undone.
+              This action cannot be undone. This will permanently delete the
+              statement, its associated transactions, and the uploaded file.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-red-500 hover:bg-red-600"
               onClick={() => {
                 if (statementToDelete) {
                   handleDelete(statementToDelete);
-                  setStatementToDelete(null);
                 }
               }}
             >
@@ -488,6 +350,86 @@ export default function StatementsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Re-add Statement Details Dialog */}
+      <Dialog
+        open={!!selectedStatement}
+        onOpenChange={() => {
+          setSelectedStatement(null);
+          setStatementDetails(null); // Clear details when closing
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Statement Details</DialogTitle>
+            <DialogDescription>
+              {selectedStatement?.filename} - {selectedStatement?.source_bank}
+            </DialogDescription>
+          </DialogHeader>
+          {isDetailsLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : statementDetails && statementDetails.transactions.length > 0 ? (
+            <div className="space-y-4 mt-4">
+              <div className="rounded-lg border bg-muted p-4">
+                <h3 className="font-medium mb-2 text-sm">Summary</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Total Amount
+                    </p>
+                    <p className="text-lg font-semibold">
+                      {formatCurrency(
+                        statementDetails.summary.total_amount,
+                        statementDetails.summary.currency
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">
+                      Total Transactions
+                    </p>
+                    <p className="text-lg font-semibold">
+                      {statementDetails.summary.count}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="max-h-96 overflow-y-auto border rounded-md">
+                <Table className="text-sm">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="h-10">Date</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {statementDetails.transactions.map((t, i) => (
+                      <TableRow key={i}>
+                        <TableCell>
+                          {new Date(t.transaction_date).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {t.description}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {formatCurrency(t.amount, t.currency)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-12 text-muted-foreground">
+              No transactions found for this statement.
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

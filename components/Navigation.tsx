@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import LoginButton from "./auth/LoginButton";
+import { ThemeToggle } from "./theme-toggle";
 
 export function Navigation() {
   const pathname = usePathname();
@@ -38,39 +39,36 @@ export function Navigation() {
   const links = [
     { href: "/", label: "Transactions" },
     { href: "/invoices", label: "Invoices" },
-    { href: "/statements", label: "Import Statements" },
+    { href: "/statements", label: "Statements" },
   ];
 
   return (
-    <nav className="border-b bg-background">
+    <nav className="border-b">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center space-x-8">
+          <div className="flex items-center gap-6">
             <Link href="/" className="flex items-center space-x-2">
               <span className="text-xl font-bold text-primary">
                 Gatti Caiano
               </span>
             </Link>
-            {isAuthenticated && (
-              <div className="flex items-center space-x-6">
-                {links.map(({ href, label }) => (
-                  <Link
-                    key={href}
-                    href={href}
-                    className={cn(
-                      "text-sm font-medium transition-colors hover:text-primary",
-                      pathname === href
-                        ? "text-primary font-semibold"
-                        : "text-muted-foreground"
-                    )}
-                  >
-                    {label}
-                  </Link>
-                ))}
-              </div>
-            )}
+            {links.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={cn(
+                  "text-sm font-medium transition-colors hover:text-primary",
+                  pathname === link.href
+                    ? "text-foreground"
+                    : "text-muted-foreground"
+                )}
+              >
+                {link.label}
+              </Link>
+            ))}
           </div>
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
             {isAuthenticated ? <LogoutButton /> : <LoginButton />}
           </div>
         </div>

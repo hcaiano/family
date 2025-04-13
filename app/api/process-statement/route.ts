@@ -22,7 +22,7 @@ interface TransactionInsert {
   source_id?: string | null;
   category?: string;
   notes?: string;
-  status: string;
+  status?: string;
 }
 
 interface RequestPayload {
@@ -32,12 +32,16 @@ interface RequestPayload {
 
 export async function POST(req: Request) {
   console.log("🟢 API: Starting process-statement");
+
+  let supabase;
+  let storagePath;
+
   try {
     // 1. Initialize Supabase Client
     const cookieStore = await cookies();
     console.log("🟢 API: Got cookies");
 
-    const supabase = createServerClient(
+    supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
@@ -73,7 +77,8 @@ export async function POST(req: Request) {
 
     // 3. Get Input
     const payload: RequestPayload = await req.json();
-    const { storagePath, bankType } = payload;
+    storagePath = payload.storagePath;
+    const { bankType } = payload;
     console.log("🟢 API: Got payload:", { storagePath, bankType });
 
     if (!storagePath || !bankType) {
@@ -81,6 +86,21 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "Missing storagePath or bankType in request body" },
         { status: 400 }
+      );
+    }
+
+    // Get the statement record
+    const { data: statement, error: statementError } = await supabase
+      .from("statements")
+      .select()
+      .eq("storage_path", storagePath)
+      .single();
+
+    if (statementError) {
+      console.error("Error fetching statement:", statementError);
+      return NextResponse.json(
+        { error: "Statement not found" },
+        { status: 404 }
       );
     }
 
@@ -145,8 +165,7 @@ export async function POST(req: Request) {
           processedCount++;
 
           try {
-            // Debug: Log each row being processed
-            console.log("Raw row data:", row);
+            // Reduced logging: Removed logging for every raw row
 
             const completedDate = row["Date completed (UTC)"];
             if (!completedDate) {
@@ -157,91 +176,76 @@ export async function POST(req: Request) {
 
             const transactionDate = new Date(completedDate);
             if (isNaN(transactionDate.getTime())) {
-              console.warn(`Invalid date format: ${completedDate}`);
+              console.warn(
+                `Skipping row with invalid date format: ${completedDate}`
+              );
               errorCount++;
               continue;
             }
+            const transactionDateIso = transactionDate
+              .toISOString()
+              .split("T")[0];
 
-            const description = row["Description"] || "";
-            const amount = parseFloat(row["Amount"]);
-            const currency = row["Payment currency"];
-
-            // Add debug logging
-            console.log("Processing row:", {
-              date: completedDate,
-              description,
-              amount,
-              currency,
-              state: row["State"],
-              rawAmount: row["Amount"], // Debug: Log raw amount before parsing
-            });
+            const description = row["Description"]?.trim() || "";
+            const amountStr = row["Amount"];
+            const currency = row["Payment currency"]?.trim();
 
             if (!currency) {
-              console.warn("Skipping row without currency");
+              console.warn("Skipping row without currency", { row });
               errorCount++;
               continue;
             }
 
+            const amount = parseFloat(amountStr);
             if (isNaN(amount)) {
-              console.warn(`Invalid amount format: ${row["Amount"]}`);
+              console.warn(
+                `Skipping row with invalid amount format: ${amountStr}`,
+                { row }
+              );
               errorCount++;
               continue;
             }
 
-            // Only process COMPLETED transactions
-            if (row["State"] !== "COMPLETED") {
-              console.log(
-                `Skipping non-completed transaction: ${row["State"]}`
-              );
-              skippedCount++;
-              continue;
-            }
+            // Removed strict check for row["State"] === "COMPLETED"
+            // Consider adding it back if necessary, but for now, prioritize getting data in.
+            // if (row["State"] !== "COMPLETED") { ... }
 
             // Check for duplicates
             const isDuplicate = existingDbTransactions?.some(
               (t: Transaction) =>
-                t.transaction_date ===
-                  transactionDate.toISOString().split("T")[0] &&
-                t.amount === amount &&
+                t.transaction_date === transactionDateIso &&
+                Math.abs(t.amount - amount) < 0.001 && // Use tolerance for float comparison
                 t.currency === currency &&
                 t.description === description
             );
 
             if (isDuplicate) {
-              console.log("Skipping duplicate transaction");
+              // Clearer logging for duplicates
+              console.log(
+                `Skipping duplicate transaction: Date=${transactionDateIso}, Amount=${amount}, Desc=${description}`
+              );
               skippedCount++;
               continue;
             }
 
-            // Debug: Log transaction being added
-            console.log("Adding transaction:", {
-              date: transactionDate.toISOString().split("T")[0],
-              description: description.trim(),
-              amount,
-              currency,
-              source_bank: "REVOLUT",
-              status: "unmatched",
-              source_id: storagePath,
-            });
-
+            // Reduced logging: Log only the transaction being added if successful
             transactionsToInsert.push({
               user_id: user.id,
-              transaction_date: transactionDate.toISOString().split("T")[0],
-              description: description.trim(),
-              amount,
-              currency,
+              transaction_date: transactionDateIso,
+              description: description,
+              amount: amount,
+              currency: currency,
               source_bank: "REVOLUT",
-              status: "unmatched",
               source_id: storagePath,
             });
           } catch (rowError: any) {
-            console.error("Error processing row:", rowError);
+            console.error("Error processing Revolut row:", rowError, { row });
             errorCount++;
           }
         }
 
-        // Debug: Log final counts
-        console.log("Final counts:", {
+        // Log summary counts
+        console.log("Revolut Processing Summary:", {
           processedCount,
           skippedCount,
           errorCount,
@@ -260,63 +264,113 @@ export async function POST(req: Request) {
       try {
         const workbook = xlsx.read(fileBuffer, { type: "buffer" });
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = xlsx.utils.sheet_to_json(worksheet);
+
+        // Debug: Log sheet information
+        console.log("Sheet Names:", workbook.SheetNames);
+        console.log("First Sheet Range:", worksheet["!ref"]);
+
+        const jsonData = xlsx.utils.sheet_to_json(worksheet, {
+          raw: false, // This will keep numbers as strings
+          defval: "", // Default value for empty cells
+          range: 15, // Start from row 16 where the actual transactions begin
+        });
+
+        // Debug: Log the first few rows to understand the structure
+        console.log("First row of data:", JSON.stringify(jsonData[0], null, 2));
+        console.log("Total rows found:", jsonData.length);
 
         for (const row of jsonData as any[]) {
           processedCount++;
 
           try {
+            // Reduced logging: Removed logging for every raw row
+
             const dateStr = row["Data Mov."];
             if (!dateStr) {
-              console.warn("Skipping row without date");
+              console.warn("Skipping row without date", { row });
               errorCount++;
               continue;
             }
 
-            // Parse date (assuming format DD-MM-YYYY)
-            const [day, month, year] = dateStr.split("-").map(Number);
+            // Parse date (DD-MM-YYYY format)
+            const dateParts = dateStr.split("-").map(Number);
+            if (dateParts.length !== 3 || dateParts.some(isNaN)) {
+              console.warn(`Skipping row with invalid date format: ${dateStr}`);
+              errorCount++;
+              continue;
+            }
+            const [day, month, year] = dateParts;
             const transactionDate = new Date(year, month - 1, day);
+
             if (isNaN(transactionDate.getTime())) {
-              console.warn(`Invalid date format: ${dateStr}`);
+              console.warn(
+                `Skipping row with invalid date construction: ${dateStr}`
+              );
               errorCount++;
               continue;
             }
-
             const transactionDateIso = transactionDate
               .toISOString()
               .split("T")[0];
-            const description = row["Descrição"] || "";
 
-            // Parse amount and determine if it's debit or credit
-            let parsedAmount = 0;
-            const debitStr = row["Débito"];
-            const creditStr = row["Crédito"];
+            const description = row["Descrição do Movimento"]?.trim() || "";
 
-            if (debitStr && debitStr !== "") {
-              parsedAmount = -Math.abs(parseFloat(debitStr.replace(",", ".")));
-            } else if (creditStr && creditStr !== "") {
-              parsedAmount = Math.abs(parseFloat(creditStr.replace(",", ".")));
+            // Simplified amount/currency parsing (prioritize Montante)
+            let parsedAmount: number | undefined = undefined;
+            let parsedCurrency: string = "EUR"; // Default BPI currency
+            const montanteStr = row["Montante"] || "";
+            const valorEurStr = row["Valor em EUR"] || "";
+
+            if (montanteStr) {
+              // Regex to handle different decimal separators and optional currency
+              const montanteMatch = montanteStr
+                .replace(",", ".")
+                .match(/(-?)([\d.]+)\s*([A-Z]{3})?/);
+              if (montanteMatch) {
+                const sign = montanteMatch[1] === "-" ? -1 : 1;
+                const amountValue = parseFloat(montanteMatch[2]);
+                if (!isNaN(amountValue)) {
+                  parsedAmount = sign * amountValue;
+                  parsedCurrency = montanteMatch[3] || parsedCurrency; // Use found currency or default EUR
+                }
+              }
             }
 
-            if (isNaN(parsedAmount)) {
-              console.warn(`Invalid amount format: ${debitStr || creditStr}`);
+            // Fallback to Valor em EUR if Montante parsing failed or was empty
+            if (parsedAmount === undefined && valorEurStr) {
+              const amountValue = parseFloat(
+                valorEurStr.replace(/\s/g, "").replace(",", ".")
+              );
+              if (!isNaN(amountValue)) {
+                parsedAmount = amountValue;
+                parsedCurrency = "EUR"; // Explicitly EUR if using this column
+              }
+            }
+
+            // Check if amount parsing was successful
+            if (parsedAmount === undefined || isNaN(parsedAmount)) {
+              console.warn("Skipping row with unparseable amount", {
+                montanteStr,
+                valorEurStr,
+                row,
+              });
               errorCount++;
               continue;
             }
-
-            const parsedCurrency = "EUR"; // BPI statements are in EUR
 
             // Check for duplicates
             const isDuplicate = existingDbTransactions?.some(
               (t: Transaction) =>
                 t.transaction_date === transactionDateIso &&
-                t.amount === parsedAmount &&
+                Math.abs(t.amount - parsedAmount!) < 0.001 && // Use tolerance
                 t.currency === parsedCurrency &&
                 t.description === description
             );
 
             if (isDuplicate) {
-              console.log("Skipping duplicate transaction");
+              console.log(
+                `Skipping duplicate transaction: Date=${transactionDateIso}, Amount=${parsedAmount}, Desc=${description}`
+              );
               skippedCount++;
               continue;
             }
@@ -324,18 +378,24 @@ export async function POST(req: Request) {
             transactionsToInsert.push({
               user_id: user.id,
               transaction_date: transactionDateIso,
-              description: description?.trim() ?? "",
+              description: description,
               amount: parsedAmount,
               currency: parsedCurrency,
               source_bank: "BPI",
-              status: "unmatched",
               source_id: storagePath,
             });
           } catch (rowError: any) {
-            console.error("Error processing row:", rowError);
+            console.error("Error processing BPI row:", rowError, { row });
             errorCount++;
           }
         }
+        // Log summary counts
+        console.log("BPI Processing Summary:", {
+          processedCount,
+          skippedCount,
+          errorCount,
+          transactionsToInsert: transactionsToInsert.length,
+        });
       } catch (xlsxError: any) {
         console.error("Error processing BPI XLSX:", xlsxError);
         return NextResponse.json(
@@ -344,99 +404,103 @@ export async function POST(req: Request) {
         );
       }
     } else {
-      console.error(`Unsupported bank type: ${bankType}`);
+      console.error(`🔴 Unsupported bank type: ${bankType}`);
       return NextResponse.json(
         { error: `Unsupported bank type: ${bankType}` },
         { status: 400 }
       );
     }
 
-    // 8. Batch Insert Transactions
-    if (transactionsToInsert.length > 0) {
-      console.log(
-        `Attempting to insert ${transactionsToInsert.length} new transactions.`
-      );
+    // 7. Insert Transactions & Update Statement Count
+    let finalCount = 0;
 
-      // Log the first transaction for debugging
-      console.log(
-        "Sample transaction:",
-        JSON.stringify(transactionsToInsert[0], null, 2)
-      );
-
-      const { error: insertError, data: insertedData } = await supabase
-        .from("transactions")
-        .insert(transactionsToInsert)
-        .select("id");
-
-      if (insertError) {
-        console.error("*** Database Insert Error ***");
-        console.error("Error Message:", insertError.message);
-        console.error("Error Details:", insertError.details);
-        console.error("Error Hint:", insertError.hint);
-        console.error("Error Code:", insertError.code);
-
-        // Log the full error object for debugging
-        console.error(
-          "Full error object:",
-          JSON.stringify(insertError, null, 2)
+    try {
+      if (transactionsToInsert.length > 0) {
+        console.log(
+          `🟢 Attempting to insert ${transactionsToInsert.length} transactions...`
         );
+        const { data: insertedTransactions, error: insertError } =
+          await supabase
+            .from("transactions")
+            .insert(transactionsToInsert)
+            .select("id"); // Only select ID to confirm insertion and count
 
-        // Update statement status to error
-        await supabase
-          .from("statements")
-          .update({
-            status: "error",
-            error_message: insertError.message,
-          })
-          .eq("storage_path", storagePath);
+        if (insertError) {
+          // If insertion fails, log the error and return 500 immediately
+          console.error("🔴 Error inserting transactions:", insertError);
+          // No status update needed
+          return NextResponse.json(
+            {
+              error: "Failed to insert transactions",
+              details: insertError.message,
+            },
+            { status: 500 }
+          );
+        } else {
+          finalCount = insertedTransactions?.length || 0;
+          console.log(`🟢 Successfully inserted ${finalCount} transactions.`);
+        }
+      } else {
+        // No transactions were prepared for insertion
+        console.log(
+          "🟡 No new transactions to insert." +
+            (errorCount > 0 ? ` Errors during parsing: ${errorCount}.` : "")
+        );
+        // finalCount remains 0
+      }
 
+      // Update ONLY the transactions_count in the statement record
+      console.log(
+        `🟢 Updating statement ${storagePath} with final count: ${finalCount}`
+      );
+      const { error: updateError } = await supabase
+        .from("statements")
+        .update({
+          transactions_count: finalCount,
+          // No other fields to update!
+        })
+        .eq("storage_path", storagePath);
+
+      if (updateError) {
+        console.error(
+          `🔴 Failed to update statement transaction count:`,
+          updateError
+        );
+        // Return an error because the count update is critical
         return NextResponse.json(
-          { error: `Failed to insert transactions: ${insertError.message}` },
+          { error: `Failed to update statement count: ${updateError.message}` },
           { status: 500 }
         );
       }
 
+      // 8. Return Success Response
       console.log(
-        `Successfully inserted ${insertedData?.length ?? 0} transactions.`
+        `✅ Processing complete for ${storagePath}. Final Count: ${finalCount}`
       );
-
-      // Update statement status to completed and set transaction count
-      await supabase
-        .from("statements")
-        .update({
-          status: "completed",
-          transactions_count: insertedData?.length ?? 0,
-          processed_at: new Date().toISOString(),
-        })
-        .eq("storage_path", storagePath);
-    } else {
-      // No transactions to insert (all skipped or errors)
-      await supabase
-        .from("statements")
-        .update({
-          status: errorCount > 0 ? "error" : "completed",
-          transactions_count: 0,
-          error_message:
-            errorCount > 0 ? "Failed to process any transactions" : null,
-          processed_at: new Date().toISOString(),
-        })
-        .eq("storage_path", storagePath);
+      return NextResponse.json({
+        message: `Statement processing finished for ${storagePath}.`,
+        details: `File parsing: ${processedCount} rows processed, ${finalCount} inserted, ${skippedCount} duplicates skipped, ${errorCount} row parsing errors.`,
+        bankType: bankType,
+        transactionCount: finalCount, // Return the final count
+      });
+    } catch (procError: any) {
+      // Simplify catch block for processing errors
+      console.error(
+        "🔴 Error during transaction processing (insert/update):",
+        procError
+      );
+      // No status update needed
+      return NextResponse.json(
+        { error: `Processing error: ${procError.message}` },
+        { status: 500 }
+      );
     }
-
-    // 9. Return Response
-    return NextResponse.json({
-      message: `Successfully processed statement`,
-      details: `Processed ${processedCount} transactions: ${transactionsToInsert.length} inserted, ${skippedCount} duplicates skipped, ${errorCount} errors`,
-      bankType: bankType,
-      processed: processedCount,
-      inserted: transactionsToInsert.length,
-      duplicates_skipped: skippedCount,
-      errors: errorCount,
-    });
   } catch (error: any) {
-    console.error(`Error in process-statement:`, error);
+    // Outer catch block remains largely the same
+    console.error(`🔴 FATAL Error in process-statement setup:`, error);
+    // No status update needed here either
     return NextResponse.json(
-      { error: error?.message || "Unknown error" },
+      { error: `Fatal processing error: ${error?.message || "Unknown error"}` },
       { status: 500 }
     );
   }

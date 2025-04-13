@@ -36,11 +36,7 @@ export default function LoginButton() {
 
   return (
     <Button onClick={handleLogin} disabled={isLoading}>
-      {isLoading ? (
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-      ) : (
-        <Icons.google className="mr-2 h-4 w-4" /> // Placeholder for Google icon
-      )}
+      {isLoading ? <Loader2 /> : <Icons.google />}
       Login with Google
     </Button>
   );

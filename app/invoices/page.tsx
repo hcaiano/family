@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Loader2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 
 interface Invoice {
   id: string;
@@ -71,30 +73,30 @@ export default function InvoicesPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Invoices</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage your invoices and match them with transactions
-          </p>
-        </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          New Invoice
-        </Button>
-      </div>
+      <PageHeader
+        title="Invoices"
+        description="Manage your invoices and match them with transactions"
+        action={{
+          label: "New Invoice",
+          icon: Plus,
+          onClick: () => {
+            /* TODO: Implement new invoice action */
+          },
+        }}
+      />
 
       {invoices.length === 0 ? (
-        <div className="rounded-lg border-2 border-dashed p-12 text-center">
-          <h3 className="text-lg font-semibold">No invoices yet</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Create your first invoice to get started
-          </p>
-          <Button className="mt-4">
-            <Plus className="mr-2 h-4 w-4" />
-            New Invoice
-          </Button>
-        </div>
+        <EmptyState
+          title="No invoices yet"
+          description="Create your first invoice to get started"
+          action={{
+            label: "New Invoice",
+            icon: Plus,
+            onClick: () => {
+              /* TODO: Implement new invoice action */
+            },
+          }}
+        />
       ) : (
         <div className="rounded-lg border bg-card">
           <div className="overflow-x-auto">

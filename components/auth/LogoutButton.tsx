@@ -40,11 +40,7 @@ export default function LogoutButton() {
             disabled={loading}
             aria-label="Log out"
           >
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <LogOut className="h-4 w-4" />
-            )}
+            {loading ? <Loader2 /> : <LogOut />}
           </Button>
         </TooltipTrigger>
         <TooltipContent>
