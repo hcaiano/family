@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { formatCurrency } from "@/lib/utils";
 
 // Define types directly within the hook file for co-location
 export type Statement = {
@@ -14,6 +13,18 @@ export type Statement = {
   created_at: string;
   updated_at: string;
   uploaded_at: string;
+  status: string;
+  file_name: string;
+  file_size: number;
+};
+
+export type Transaction = {
+  id: string;
+  amount: number;
+  description: string;
+  date: string;
+  type: string;
+  status?: string;
 };
 
 export interface StatementDetails {

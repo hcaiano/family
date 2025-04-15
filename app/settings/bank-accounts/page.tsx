@@ -43,16 +43,6 @@ interface BankAccount {
   currency: string;
 }
 
-type BankOption = {
-  readonly value: string;
-  readonly label: string;
-};
-
-type CurrencyOption = {
-  readonly value: string;
-  readonly label: string;
-};
-
 const PORTUGUESE_BANKS = {
   bpi: { value: "bpi", label: "Banco BPI" },
   revolut: { value: "revolut", label: "Revolut" },

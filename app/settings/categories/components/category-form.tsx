@@ -1,8 +1,6 @@
 "use client";
 
 import { useForm } from "@tanstack/react-form";
-import { zodValidator } from "@tanstack/zod-form-adapter";
-import { z } from "zod";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -41,12 +39,6 @@ const colors = {
   pink: "#EC4899",
   rose: "#F43F5E",
 };
-
-// Schema for category validation
-const categorySchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  color: z.string(),
-});
 
 type CategoryFormProps = {
   onSuccess: () => void;

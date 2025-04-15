@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Edit, Trash2, Tag } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,7 +24,6 @@ import {
 } from "@/components/ui/dialog";
 import { CategoryForm } from "./category-form";
 import { toast } from "sonner";
-import { EmptyState } from "@/components/ui/empty-state";
 
 type Category = {
   id: string;

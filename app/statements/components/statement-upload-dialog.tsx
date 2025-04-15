@@ -29,13 +29,21 @@ interface BankAccount {
   user_id: string;
 }
 
-interface UploadResponse {
+type UploadResponse = {
+  success: boolean;
   message: string;
-  bankType: string;
-  transactionCount: number;
-  details: string;
+  details?: string;
   statementId?: string;
-}
+  bankType?: string;
+  transactionCount?: number;
+  error?: string;
+};
+
+type FileUploadResult = {
+  success: boolean;
+  message: string;
+  error?: string;
+};
 
 const BANK_FILE_TYPES: Record<string, { format: string; extension: string }> = {
   revolut: { format: "CSV", extension: ".csv" },
@@ -63,6 +71,7 @@ export default function StatementUploadDialog({
   const [userId, setUserId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [statementId, setStatementId] = useState<string | null>(null);
 
   // Reset state when dialog closes
   const handleOpenChange = (open: boolean) => {
@@ -267,23 +276,23 @@ export default function StatementUploadDialog({
       }
 
       const data: UploadResponse = await response.json();
-      setSuccessMessage(data.details);
+      setSuccessMessage(data.details || null);
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
 
       // Wait for the statement to be processed before closing
-      const statementId = data.statementId;
-      if (statementId) {
+      setStatementId(data.statementId || null);
+      if (data.statementId) {
         // Subscribe to changes for this specific statement
         const channel = supabase
-          .channel(`statement_${statementId}`)
+          .channel(`statement_${data.statementId}`)
           .on(
             "postgres_changes",
             {
               event: "UPDATE",
               schema: "public",
               table: "statements",
-              filter: `id=eq.${statementId}`,
+              filter: `id=eq.${data.statementId}`,
             },
             (payload) => {
               if (payload.new.status === "parsed") {

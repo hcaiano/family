@@ -36,6 +36,12 @@ interface TransactionStats {
   }[];
 }
 
+interface ChartDataPoint {
+  date: string;
+  amount: number;
+  type: string;
+}
+
 export default function DashboardPage() {
   const [stats, setStats] = useState<TransactionStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);

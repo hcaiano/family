@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useTheme } from "next-themes";
-import { Settings } from "lucide-react";
 import { PageLayout } from "../components/page-layout";
 import { useForm } from "@tanstack/react-form";
 

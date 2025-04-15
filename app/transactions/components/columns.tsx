@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatDate } from "@/lib/utils";
 import { TransactionMenu } from "./transaction-menu";
+import { cn } from "@/lib/utils";
 
 export type Transaction = {
   id: string;
@@ -96,11 +97,7 @@ export const columns: ColumnDef<Transaction>[] = [
       return vendor ? (
         <div className="flex items-center gap-1">
           <span>{vendor.name}</span>
-          {vendor.is_subscription && (
-            <Badge variant="outline" className="text-xs h-5">
-              Sub
-            </Badge>
-          )}
+          {vendor.is_subscription && <Badge className="text-xs h-5">Sub</Badge>}
         </div>
       ) : (
         <span className="text-muted-foreground">Not assigned</span>
@@ -132,8 +129,11 @@ export const columns: ColumnDef<Transaction>[] = [
       const status = row.getValue("status") as string;
       return (
         <Badge
-          className={status === "matched" ? "bg-green-500" : "bg-red-500"}
-          variant="solid"
+          className={cn(
+            "text-xs h-5",
+            status === "matched" ? "bg-green-500" : "bg-red-500",
+            "text-white"
+          )}
         >
           {status === "matched" ? "Matched" : "Unmatched"}
         </Badge>

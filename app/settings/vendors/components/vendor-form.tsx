@@ -1,8 +1,6 @@
 "use client";
 
 import { useForm } from "@tanstack/react-form";
-import { zodValidator } from "@tanstack/zod-form-adapter";
-import { z } from "zod";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -17,13 +15,6 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-
-// Schema for vendor validation
-const vendorSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  category_id: z.string().optional(),
-  is_subscription: z.boolean().default(false),
-});
 
 type Category = {
   id: string;

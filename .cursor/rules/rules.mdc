@@ -6,6 +6,7 @@ alwaysApply: true
 Here's things you have to use
 - pnpm
 - use project id `ogizfcdgeqslkfjwzfdg` for supabase
+- never use `@supabase/auth-helpers-nextjs` because it's deprecated. use `@supabase/ssr` instead
 - shadcn
 - use `pnpm dlx shadcn@latest add component-name` to install shadcn componnets 
 - tailwind 4

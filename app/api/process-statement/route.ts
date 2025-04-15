@@ -31,17 +31,22 @@ interface RequestPayload {
   bankAccountId: string;
 }
 
-type ParsedTransaction = {
+type ParseResult = {
+  date: string;
   description: string;
   amount: number;
-  date: string;
-  currency: string;
-  source_id?: string;
+  type: "credit" | "debit";
+  [key: string]: unknown;
 };
 
-type StatementParseResult = {
-  transactions: ParsedTransaction[];
-  error?: string;
+type ProcessedRow = {
+  date: string;
+  description: string;
+  amount: number;
+  type: "credit" | "debit";
+  status: string;
+  bank_account_id: string;
+  statement_id: string;
 };
 
 export async function POST(req: Request) {

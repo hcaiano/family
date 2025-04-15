@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { MoreHorizontal, Check, Tag, ShoppingBag, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 import {
   DropdownMenu,
@@ -30,6 +31,15 @@ type Vendor = {
   name: string;
   category_id: string | null;
   is_subscription: boolean;
+};
+
+type Transaction = {
+  id: string;
+  amount: number;
+  description: string;
+  date: string;
+  type: string;
+  status?: string;
 };
 
 interface TransactionMenuProps {
@@ -202,6 +212,36 @@ export function TransactionMenu({
     }
   };
 
+  const handleDelete = async (transaction: Transaction) => {
+    try {
+      const { error } = await supabase
+        .from("transactions")
+        .delete()
+        .eq("id", transaction.id);
+
+      if (error) throw error;
+      toast.success("Transaction deleted successfully");
+    } catch (err) {
+      console.error("Error:", err);
+      toast.error("Failed to delete transaction");
+    }
+  };
+
+  const handleIgnore = async (transaction: Transaction) => {
+    try {
+      const { error } = await supabase
+        .from("transactions")
+        .update({ status: "ignored" })
+        .eq("id", transaction.id);
+
+      if (error) throw error;
+      toast.success("Transaction marked as ignored");
+    } catch (err) {
+      console.error("Error:", err);
+      toast.error("Failed to update transaction");
+    }
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -234,11 +274,7 @@ export function TransactionMenu({
               >
                 <span>{vendor.name}</span>
                 {vendor.is_subscription && (
-                  <Badge
-                    variant="solid"
-                    colorScheme="green"
-                    className="ml-2 mr-auto"
-                  >
+                  <Badge className="ml-2 mr-auto bg-green-500 text-white">
                     Subscription
                   </Badge>
                 )}

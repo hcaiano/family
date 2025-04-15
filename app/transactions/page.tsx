@@ -1,8 +1,8 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { useEffect, useState } from "react";
-import { Loader2, Upload, Download } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { Loader2, Upload } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/utils";
@@ -15,10 +15,20 @@ import { DataTable } from "./components/data-table";
 import { TransactionMenu } from "./components/transaction-menu";
 import type { Transaction } from "./components/columns";
 import type { ColumnDef } from "@tanstack/react-table";
+import { cn } from "@/lib/utils";
+
+type TransactionData = {
+  id: string;
+  amount: number;
+  description: string;
+  date: string;
+  type: string;
+  status?: string;
+};
 
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const supabase = createClient();
@@ -90,9 +100,7 @@ export default function TransactionsPage() {
           <div className="flex items-center gap-1">
             <span>{vendor.name}</span>
             {vendor.is_subscription && (
-              <Badge variant="outline" className="text-xs h-5">
-                Sub
-              </Badge>
+              <Badge className="text-xs h-5">Sub</Badge>
             )}
           </div>
         ) : (
@@ -125,8 +133,11 @@ export default function TransactionsPage() {
         const status = row.getValue("status") as string;
         return (
           <Badge
-            colorScheme={status === "matched" ? "green" : "red"}
-            variant="solid"
+            className={cn(
+              "text-xs h-5",
+              status === "matched" ? "bg-green-500" : "bg-red-500",
+              "text-white"
+            )}
           >
             {status === "matched" ? "Matched" : "Unmatched"}
           </Badge>
@@ -164,7 +175,7 @@ export default function TransactionsPage() {
     },
   ];
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async () => {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session?.user) {
@@ -172,57 +183,32 @@ export default function TransactionsPage() {
         return;
       }
 
-      const { data, error: fetchError } = await supabase
+      const { data, error } = await supabase
         .from("transactions")
         .select(
           `
           *,
-          vendor:vendors!transactions_vendor_id_fkey(*),
-          category:categories!transactions_category_id_fkey(*)
+          vendor:vendors(id, name, is_subscription),
+          category:categories(id, name, color)
         `
         )
         .eq("user_id", sessionData.session.user.id)
         .order("transaction_date", { ascending: false });
 
-      if (fetchError) throw fetchError;
-
-      // Explicitly sort client-side (date desc, then description asc)
-      const sortedData = (data || []).sort((a, b) => {
-        const dateA = a.transaction_date
-          ? new Date(a.transaction_date).getTime()
-          : 0;
-        const dateB = b.transaction_date
-          ? new Date(b.transaction_date).getTime()
-          : 0;
-
-        // Handle potential NaN values from invalid dates
-        if (isNaN(dateA) && isNaN(dateB)) return 0;
-        if (isNaN(dateA)) return 1; // Treat invalid dates as older
-        if (isNaN(dateB)) return -1; // Treat invalid dates as older
-
-        // Primary sort: Date descending
-        if (dateA !== dateB) {
-          return dateB - dateA;
-        }
-
-        // Secondary sort: Description ascending (case-insensitive)
-        const descA = (a.description || "").toLowerCase();
-        const descB = (b.description || "").toLowerCase();
-        return descA.localeCompare(descB);
-      });
-
-      setTransactions(sortedData);
+      if (error) throw error;
+      setTransactions(data || []);
     } catch (err: any) {
-      toast.error(err.message);
+      console.error("Error fetching transactions:", err);
+      toast.error(err.message || "Failed to fetch transactions");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
+  }, [supabase, router]);
 
   useEffect(() => {
     fetchTransactions();
 
-    // Set up real-time subscription to transactions
+    // Set up real-time subscription to transactions and related tables
     const setupRealtimeSubscription = async () => {
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session?.user) return;
@@ -237,11 +223,25 @@ export default function TransactionsPage() {
             table: "transactions",
             filter: `user_id=eq.${sessionData.session.user.id}`,
           },
-          (payload) => {
-            console.log("Transaction change received:", payload);
-            // Simplify: Refetch all transactions on any change for now
-            fetchTransactions();
-          }
+          () => fetchTransactions()
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "vendors",
+          },
+          () => fetchTransactions()
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "categories",
+          },
+          () => fetchTransactions()
         )
         .subscribe();
 
@@ -258,7 +258,7 @@ export default function TransactionsPage() {
         supabase.removeChannel(channel);
       }
     };
-  }, [supabase, router]);
+  }, [supabase, fetchTransactions]);
 
   const downloadTransactionsCSV = () => {
     if (transactions.length === 0) {
@@ -305,7 +305,7 @@ export default function TransactionsPage() {
     document.body.removeChild(link);
   };
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-6 w-6 animate-spin" />

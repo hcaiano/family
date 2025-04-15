@@ -36,27 +36,6 @@ interface DataTableProps<TData> {
   onDownloadCSV?: () => void;
 }
 
-// Custom filter function for multi-column searching
-const multiColumnFilterFn: FilterFn<Transaction> = (
-  row,
-  columnId,
-  filterValue
-) => {
-  const searchableRowContent = `${row.original.description}`.toLowerCase();
-  const searchTerm = (filterValue ?? "").toLowerCase();
-  return searchableRowContent.includes(searchTerm);
-};
-
-const statusFilterFn: FilterFn<Transaction> = (
-  row,
-  columnId,
-  filterValue: string[]
-) => {
-  if (!filterValue?.length) return true;
-  const status = row.getValue(columnId) as string;
-  return filterValue.includes(status);
-};
-
 export function DataTable<TData extends Transaction>({
   columns,
   data,

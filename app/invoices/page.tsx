@@ -10,14 +10,33 @@ import { PageHeader } from "@/components/ui/page-header";
 
 interface Invoice {
   id: string;
-  number: string;
-  amount: number;
-  currency: string;
-  issue_date: string;
-  due_date: string;
-  status: "paid" | "unpaid";
-  client_name: string;
+  created_at: string;
+  status: string;
+  file_name: string;
+  file_size: number;
+  number?: string;
+  amount?: number;
+  currency?: string;
+  issue_date?: string;
+  due_date?: string;
+  client_name?: string;
 }
+
+const transformData = (data: Invoice) => {
+  return {
+    id: data.id,
+    created_at: data.created_at,
+    status: data.status,
+    file_name: data.file_name,
+    file_size: data.file_size,
+    number: data.number || "",
+    amount: data.amount || 0,
+    currency: data.currency || "",
+    issue_date: data.issue_date || data.created_at,
+    due_date: data.due_date || data.created_at,
+    client_name: data.client_name || "",
+  };
+};
 
 export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -118,16 +137,27 @@ export default function InvoicesPage() {
                     <td className="p-4 text-sm">{invoice.number}</td>
                     <td className="p-4 text-sm">{invoice.client_name}</td>
                     <td className="p-4 text-sm">
-                      {new Date(invoice.issue_date).toLocaleDateString()}
+                      {invoice.issue_date ? (
+                        new Date(invoice.issue_date).toLocaleDateString()
+                      ) : (
+                        <span>-</span>
+                      )}
                     </td>
                     <td className="p-4 text-sm">
-                      {new Date(invoice.due_date).toLocaleDateString()}
+                      {invoice.due_date ? (
+                        new Date(invoice.due_date).toLocaleDateString()
+                      ) : (
+                        <span>-</span>
+                      )}
                     </td>
                     <td className="p-4 text-sm">
-                      {new Intl.NumberFormat("en-US", {
-                        style: "currency",
-                        currency: invoice.currency,
-                      }).format(invoice.amount)}
+                      {invoice.amount ? (
+                        `${invoice.amount.toLocaleString()} ${
+                          invoice.currency || ""
+                        }`
+                      ) : (
+                        <span>-</span>
+                      )}
                     </td>
                     <td className="p-4 text-sm">
                       <span

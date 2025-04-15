@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Edit, Trash2, Building2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,7 +25,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { VendorForm } from "./vendor-form";
 import { toast } from "sonner";
-import { EmptyState } from "@/components/ui/empty-state";
 
 type Category = {
   id: string;
@@ -147,9 +146,7 @@ export function VendorList() {
                   <h3 className="font-medium flex items-center gap-2">
                     {vendor.name}
                     {vendor.is_subscription && (
-                      <Badge variant="outline" className="ml-2">
-                        Subscription
-                      </Badge>
+                      <Badge className="ml-2">Subscription</Badge>
                     )}
                   </h3>
                   {vendor.category && (

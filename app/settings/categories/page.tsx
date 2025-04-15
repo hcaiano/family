@@ -13,8 +13,6 @@ import {
 } from "@/components/ui/card";
 import { CategoryForm } from "@/app/settings/categories/components/category-form";
 import { CategoryList } from "@/app/settings/categories/components/category-list";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { PageLayout } from "../components/page-layout";
 

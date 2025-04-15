@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -15,10 +15,25 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { PageLayout } from "./components/page-layout";
 import { useForm } from "@tanstack/react-form";
+import { useRouter } from "next/navigation";
+
+type CompanyInfo = {
+  company_name: string;
+  nif: string;
+  address?: string;
+  postal_code?: string;
+  city?: string;
+  country?: string;
+  email?: string;
+  phone?: string;
+};
 
 export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
+  const router = useRouter();
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const form = useForm({
     defaultValues: {
@@ -55,21 +70,16 @@ export default function SettingsPage() {
     },
   });
 
-  useEffect(() => {
-    fetchCompanyInfo();
-  }, []);
-
-  const fetchCompanyInfo = async () => {
+  const fetchCompanyInfo = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("company_info")
         .select("*")
         .single();
 
-      if (error && error.code !== "PGRST116") {
-        throw error;
-      }
+      if (error) throw error;
 
+      // Update form with data if available
       if (data) {
         form.setFieldValue("company_name", data.company_name);
         form.setFieldValue("nif", data.nif);
@@ -80,13 +90,17 @@ export default function SettingsPage() {
         form.setFieldValue("email", data.email || "");
         form.setFieldValue("phone", data.phone || "");
       }
-    } catch (error) {
+    } catch (err) {
       toast.error("Failed to load company information");
-      console.error("Error:", error);
+      console.error("Error:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase, form]);
+
+  useEffect(() => {
+    fetchCompanyInfo();
+  }, [fetchCompanyInfo]);
 
   if (loading) {
     return (
