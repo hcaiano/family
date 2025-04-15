@@ -14,10 +14,10 @@ import { PageHeader } from "@/components/ui/page-header";
 import { useStatements, Statement } from "./hooks/useStatements";
 
 // Import the new components
-import { StatementTableRow } from "./components/StatementTableRow";
-import { DeleteConfirmationDialog } from "./components/DeleteConfirmationDialog";
-import { StatementDetailsDialog } from "./components/StatementDetailsDialog";
-import StatementUploadDialog from "./components/StatementUploadDialog";
+import { StatementTableRow } from "./components/statement-table-row";
+import { DeleteConfirmationDialog } from "./components/delete-confirmation-dialog";
+import { StatementDetailsDialog } from "./components/statement-details-dialog";
+import StatementUploadDialog from "./components/statement-upload-dialog";
 
 export default function StatementsPage() {
   const {
@@ -41,7 +41,7 @@ export default function StatementsPage() {
   // Handle loading state
   if (isLoadingList) {
     return (
-      <div className="container mx-auto px-4 py-8 flex justify-center items-center h-64">
+      <div className="flex justify-center items-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
@@ -50,7 +50,7 @@ export default function StatementsPage() {
   // Handle error state
   if (errorLoadingList) {
     return (
-      <div className="container mx-auto px-4 py-8 text-center text-red-600">
+      <div className="text-center text-red-600">
         <p>Error loading statements: {errorLoadingList}</p>
         {/* Optionally add a retry button */}
       </div>
@@ -58,7 +58,7 @@ export default function StatementsPage() {
   }
 
   return (
-    <div className="container py-6">
+    <>
       <PageHeader
         title="Bank Statements"
         description="Manage your bank statements and import transactions"
@@ -139,6 +139,6 @@ export default function StatementsPage() {
         isLoading={isDetailsLoading}
         error={errorLoadingDetails}
       />
-    </div>
+    </>
   );
 }

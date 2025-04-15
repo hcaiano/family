@@ -34,6 +34,7 @@ interface UploadResponse {
   bankType: string;
   transactionCount: number;
   details: string;
+  statementId?: string;
 }
 
 const BANK_FILE_TYPES: Record<string, { format: string; extension: string }> = {
@@ -270,10 +271,41 @@ export default function StatementUploadDialog({
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
 
-      // Close dialog after successful upload
-      setTimeout(() => {
-        setIsOpen(false);
-      }, 2000);
+      // Wait for the statement to be processed before closing
+      const statementId = data.statementId;
+      if (statementId) {
+        // Subscribe to changes for this specific statement
+        const channel = supabase
+          .channel(`statement_${statementId}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "UPDATE",
+              schema: "public",
+              table: "statements",
+              filter: `id=eq.${statementId}`,
+            },
+            (payload) => {
+              if (payload.new.status === "parsed") {
+                // Statement is fully processed, close dialog
+                setIsOpen(false);
+                channel.unsubscribe();
+              }
+            }
+          )
+          .subscribe();
+
+        // Set a timeout to close the dialog anyway after 5 seconds
+        setTimeout(() => {
+          setIsOpen(false);
+          channel.unsubscribe();
+        }, 5000);
+      } else {
+        // If no statement ID, close after 2 seconds
+        setTimeout(() => {
+          setIsOpen(false);
+        }, 2000);
+      }
     } catch (err: any) {
       setError(err.message || "An unexpected error occurred.");
     } finally {

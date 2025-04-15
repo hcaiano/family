@@ -513,7 +513,8 @@ export async function POST(req: Request) {
         message: `Statement processing finished for ${storagePath}.`,
         details: `File parsing: ${processedCount} rows processed, ${finalCount} inserted, ${skippedCount} duplicates skipped, ${errorCount} row parsing errors.`,
         bankType: bankAccount.bank_type,
-        transactionCount: finalCount, // Return the final count
+        transactionCount: finalCount,
+        statementId: statement.id,
       });
     } catch (procError: any) {
       // Simplify catch block for processing errors

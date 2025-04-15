@@ -455,7 +455,8 @@ export type Database = {
     }
     Enums: {
       ai_analysis_status: "pending" | "processing" | "completed" | "error"
-      bank_type:
+      bank_type: "bpi" | "revolut" | "other"
+      bank_type_old:
         | "bpi"
         | "cgd"
         | "millennium"
@@ -592,7 +593,8 @@ export const Constants = {
   public: {
     Enums: {
       ai_analysis_status: ["pending", "processing", "completed", "error"],
-      bank_type: [
+      bank_type: ["bpi", "revolut", "other"],
+      bank_type_old: [
         "bpi",
         "cgd",
         "millennium",

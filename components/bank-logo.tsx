@@ -8,13 +8,7 @@ type BankLogoProps = {
 export function BankLogo({ bankType, className }: BankLogoProps) {
   const logos: Record<string, string> = {
     bpi: "/banks/bpi.png",
-    cgd: "/banks/cgd.png",
-    millennium: "/banks/millennium.png",
-    montepio: "/banks/montepio.png",
-    novobanco: "/banks/novobanco.png",
-    santander: "/banks/santander.png",
-    bankinter: "/banks/bankinter.png",
-    activo: "/banks/activo.png",
+    revolut: "/banks/revolut.png",
   };
 
   const defaultLogo = "/banks/default.png";

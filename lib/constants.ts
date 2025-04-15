@@ -11,14 +11,7 @@ export const CURRENCIES = [
 
 export const PORTUGUESE_BANKS = [
   { value: "bpi", label: "Banco BPI" },
-  { value: "cgd", label: "Caixa Geral de Depósitos" },
-  { value: "millennium", label: "Millennium BCP" },
-  { value: "santander", label: "Santander Totta" },
-  { value: "novobanco", label: "Novo Banco" },
-  { value: "bankinter", label: "Bankinter" },
   { value: "revolut", label: "Revolut" },
-  { value: "wise", label: "Wise" },
-  { value: "other", label: "Other" },
 ] as const;
 
 export type Currency = (typeof CURRENCIES)[number]["value"];

@@ -55,13 +55,7 @@ type CurrencyOption = {
 
 const PORTUGUESE_BANKS = {
   bpi: { value: "bpi", label: "Banco BPI" },
-  cgd: { value: "cgd", label: "Caixa Geral de Depósitos" },
-  millennium: { value: "millennium", label: "Millennium BCP" },
-  montepio: { value: "montepio", label: "Banco Montepio" },
-  novobanco: { value: "novobanco", label: "Novo Banco" },
-  santander: { value: "santander", label: "Banco Santander Totta" },
-  bankinter: { value: "bankinter", label: "Bankinter" },
-  activo: { value: "activo", label: "Banco Activo Bank" },
+  revolut: { value: "revolut", label: "Revolut" },
 } as const;
 
 const CURRENCIES = {
@@ -278,7 +272,6 @@ export default function BankAccountsPage() {
                             {bank.label}
                           </SelectItem>
                         ))}
-                        <SelectItem value="other">Other</SelectItem>
                       </SelectContent>
                     </Select>
                     {field.state.meta.errors && (
@@ -423,7 +416,7 @@ export default function BankAccountsPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
           {bankAccounts.map((account) => (
             <Card key={account.id} className="group relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent pointer-events-none" />
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <BankLogo bankType={account.bank_type} />
@@ -431,7 +424,7 @@ export default function BankAccountsPage() {
                     variant="ghost"
                     size="icon"
                     onClick={() => deleteBankAccount(account.id)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity relative z-10"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>

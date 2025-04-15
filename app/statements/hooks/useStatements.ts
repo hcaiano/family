@@ -91,13 +91,77 @@ export function useStatements() {
 
   useEffect(() => {
     fetchStatements();
-  }, [fetchStatements]);
+
+    // Get current user's ID for filtering
+    const getCurrentUserId = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        // Set up real-time subscription for statements
+        const channel = supabase
+          .channel("statements_changes")
+          .on(
+            "postgres_changes",
+            {
+              event: "INSERT",
+              schema: "public",
+              table: "statements",
+              filter: `user_id=eq.${user.id}`,
+            },
+            (payload) => {
+              console.log("🔄 [Hook] New statement inserted:", payload);
+              setStatements((prev) => [payload.new as Statement, ...prev]);
+            }
+          )
+          .on(
+            "postgres_changes",
+            {
+              event: "UPDATE",
+              schema: "public",
+              table: "statements",
+              filter: `user_id=eq.${user.id}`,
+            },
+            (payload) => {
+              console.log("🔄 [Hook] Statement updated:", payload);
+              setStatements((prev) =>
+                prev.map((s) =>
+                  s.id === payload.new.id ? (payload.new as Statement) : s
+                )
+              );
+            }
+          )
+          .on(
+            "postgres_changes",
+            {
+              event: "DELETE",
+              schema: "public",
+              table: "statements",
+              filter: `user_id=eq.${user.id}`,
+            },
+            (payload) => {
+              console.log("🔄 [Hook] Statement deleted:", payload);
+              setStatements((prev) =>
+                prev.filter((s) => s.id !== payload.old.id)
+              );
+            }
+          )
+          .subscribe();
+
+        return () => {
+          supabase.removeChannel(channel);
+        };
+      }
+    };
+
+    getCurrentUserId();
+  }, [fetchStatements, supabase]);
 
   const confirmDelete = useCallback(async () => {
     if (!statementToDelete) return;
 
     console.log(
-      `[Hook] Attempting to delete statement ID: ${statementToDelete.id}, Path: ${statementToDelete.storage_path}`
+      `[Hook] Attempting to delete statement ID: ${statementToDelete.id}`
     );
     setIsDeleting(true);
     setErrorDeleting(null);
@@ -108,8 +172,7 @@ export function useStatements() {
         await supabase
           .from("transactions")
           .delete()
-          .eq("source_bank", statementToDelete.source_bank)
-          .eq("source_id", statementToDelete.storage_path)
+          .eq("statement_id", statementToDelete.id)
           .select("id");
 
       if (transactionsError) {
@@ -160,7 +223,7 @@ export function useStatements() {
 
   const viewDetails = useCallback(
     async (statement: Statement) => {
-      if (!statement || !statement.source_bank || !statement.storage_path) {
+      if (!statement) {
         toast.error("Cannot fetch details for this statement.");
         return;
       }
@@ -172,8 +235,7 @@ export function useStatements() {
         const { data: transactions, error: fetchError } = await supabase
           .from("transactions")
           .select("transaction_date, description, amount, currency")
-          .eq("source_bank", statement.source_bank)
-          .eq("source_id", statement.storage_path)
+          .eq("statement_id", statement.id)
           .order("transaction_date", { ascending: false });
 
         if (fetchError) throw fetchError;

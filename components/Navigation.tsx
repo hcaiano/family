@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import LogoutButton from "@/components/auth/LogoutButton";
+import LogoutButton from "@/app/auth/components/logout-button";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
-import LoginButton from "./auth/LoginButton";
+import LoginButton from "../app/auth/components/login-button";
 import { ThemeToggle } from "./theme-toggle";
 import { Settings } from "lucide-react";
 
@@ -45,7 +45,7 @@ export function Navigation() {
 
   return (
     <nav className="border-b">
-      <div className="container mx-auto px-4">
+      <div className="container">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-6">
             <Link href="/" className="flex items-center space-x-2">
@@ -68,7 +68,7 @@ export function Navigation() {
               </Link>
             ))}
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
             {isAuthenticated && (
               <Button variant="ghost" size="icon" asChild>
                 <Link href="/settings">

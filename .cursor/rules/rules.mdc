@@ -1,7 +1,7 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 Here's things you have to use
 - pnpm
@@ -9,3 +9,9 @@ Here's things you have to use
 - tailwind 4
 - supabase
 - nextjs 15
+- use kebab case for components like component-kebab.tsx
+- run `pnpm types:supabase` to update db types
+- run the migrations using supabase mcp
+- always use tanstack form for forms
+- use zustand when needed
+- use zod when needed

@@ -63,16 +63,14 @@ export default function InvoicesPage() {
 
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="rounded-lg bg-red-50 p-4">
-          <p className="text-red-600">{error}</p>
-        </div>
+      <div className="rounded-lg bg-red-50 p-4">
+        <p className="text-red-600">{error}</p>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <>
       <PageHeader
         title="Invoices"
         description="Manage your invoices and match them with transactions"
@@ -157,6 +155,6 @@ export default function InvoicesPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
