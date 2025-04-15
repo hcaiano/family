@@ -173,7 +173,11 @@ export function TransactionMenu({
               >
                 <span>{vendor.name}</span>
                 {vendor.is_subscription && (
-                  <Badge variant="outline" className="ml-2 mr-auto">
+                  <Badge
+                    variant="solid"
+                    colorScheme="green"
+                    className="ml-2 mr-auto"
+                  >
                     Subscription
                   </Badge>
                 )}

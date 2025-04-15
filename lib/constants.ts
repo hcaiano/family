@@ -14,5 +14,26 @@ export const PORTUGUESE_BANKS = [
   { value: "revolut", label: "Revolut" },
 ] as const;
 
+export const TAILWIND_COLORS = [
+  "neutral",
+  "red",
+  "orange",
+  "amber",
+  "yellow",
+  "lime",
+  "green",
+  "emerald",
+  "teal",
+  "cyan",
+  "sky",
+  "blue",
+  "indigo",
+  "violet",
+  "purple",
+  "fuchsia",
+  "pink",
+  "rose",
+] as const;
+
 export type Currency = (typeof CURRENCIES)[number]["value"];
 export type BankType = (typeof PORTUGUESE_BANKS)[number]["value"];
