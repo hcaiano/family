@@ -62,12 +62,14 @@ export default function StatementsPage() {
       <PageHeader
         title="Bank Statements"
         description="Manage your bank statements and import transactions"
-        action={{
-          label: "Upload Statement",
-          icon: Upload,
-          onClick: () =>
-            document.getElementById("upload-statement-trigger")?.click(),
-        }}
+        actions={[
+          {
+            label: "Upload Statement",
+            icon: Upload,
+            onClick: () =>
+              document.getElementById("upload-statement-trigger")?.click(),
+          },
+        ]}
       />
 
       {statements.length === 0 ? (

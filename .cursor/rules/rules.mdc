@@ -5,7 +5,9 @@ alwaysApply: true
 ---
 Here's things you have to use
 - pnpm
+- use project id `ogizfcdgeqslkfjwzfdg` for supabase
 - shadcn
+- use `pnpm dlx shadcn@latest add component-name` to install shadcn componnets 
 - tailwind 4
 - supabase
 - nextjs 15
@@ -15,3 +17,5 @@ Here's things you have to use
 - always use tanstack form for forms
 - use zustand when needed
 - use zod when needed
+- add reusable components in the /components folder but add specific feature components inside the app/feature-name/components/ folder
+- check the database schema quickly by going to `./lib/supabase/database.types.ts

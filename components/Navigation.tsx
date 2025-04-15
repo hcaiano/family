@@ -38,7 +38,8 @@ export function Navigation() {
   }, [supabase]);
 
   const links = [
-    { href: "/", label: "Transactions" },
+    { href: "/dashboard", label: "Dashboard" },
+    { href: "/transactions", label: "Transactions" },
     { href: "/invoices", label: "Invoices" },
     { href: "/statements", label: "Statements" },
   ];

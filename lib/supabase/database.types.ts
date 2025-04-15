@@ -45,6 +45,41 @@ export type Database = {
         }
         Relationships: []
       }
+      categories: {
+        Row: {
+          color: string
+          created_at: string | null
+          id: string
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "categories_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_info: {
         Row: {
           address: string | null
@@ -338,20 +373,16 @@ export type Database = {
       }
       transactions: {
         Row: {
-          ai_analysis_status:
-            | Database["public"]["Enums"]["ai_analysis_status"]
-            | null
-          ai_extracted_category: string | null
-          ai_extracted_vendor: string | null
           amount: number
           bank_account_id: string | null
-          category: string | null
+          category_id: string | null
           created_at: string
           currency: string
           description: string | null
           has_multiple_invoices: boolean | null
           id: string
           invoice_id: string | null
+          is_subscription: boolean | null
           note: string | null
           source_bank: string | null
           source_id: string | null
@@ -361,22 +392,19 @@ export type Database = {
           updated_at: string
           user_id: string
           vendor_guess: string | null
+          vendor_id: string | null
         }
         Insert: {
-          ai_analysis_status?:
-            | Database["public"]["Enums"]["ai_analysis_status"]
-            | null
-          ai_extracted_category?: string | null
-          ai_extracted_vendor?: string | null
           amount: number
           bank_account_id?: string | null
-          category?: string | null
+          category_id?: string | null
           created_at?: string
           currency: string
           description?: string | null
           has_multiple_invoices?: boolean | null
           id?: string
           invoice_id?: string | null
+          is_subscription?: boolean | null
           note?: string | null
           source_bank?: string | null
           source_id?: string | null
@@ -386,22 +414,19 @@ export type Database = {
           updated_at?: string
           user_id: string
           vendor_guess?: string | null
+          vendor_id?: string | null
         }
         Update: {
-          ai_analysis_status?:
-            | Database["public"]["Enums"]["ai_analysis_status"]
-            | null
-          ai_extracted_category?: string | null
-          ai_extracted_vendor?: string | null
           amount?: number
           bank_account_id?: string | null
-          category?: string | null
+          category_id?: string | null
           created_at?: string
           currency?: string
           description?: string | null
           has_multiple_invoices?: boolean | null
           id?: string
           invoice_id?: string | null
+          is_subscription?: boolean | null
           note?: string | null
           source_bank?: string | null
           source_id?: string | null
@@ -411,6 +436,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           vendor_guess?: string | null
+          vendor_id?: string | null
         }
         Relationships: [
           {
@@ -418,6 +444,13 @@ export type Database = {
             columns: ["bank_account_id"]
             isOneToOne: false
             referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
             referencedColumns: ["id"]
           },
           {
@@ -441,6 +474,58 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "transactions_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendors: {
+        Row: {
+          category_id: string | null
+          created_at: string | null
+          id: string
+          is_subscription: boolean | null
+          name: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_subscription?: boolean | null
+          name: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string | null
+          id?: string
+          is_subscription?: boolean | null
+          name?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendors_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendors_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
@@ -455,7 +540,7 @@ export type Database = {
     }
     Enums: {
       ai_analysis_status: "pending" | "processing" | "completed" | "error"
-      bank_type: "bpi" | "revolut" | "other"
+      bank_type: "bpi" | "revolut"
       bank_type_old:
         | "bpi"
         | "cgd"
@@ -593,7 +678,7 @@ export const Constants = {
   public: {
     Enums: {
       ai_analysis_status: ["pending", "processing", "completed", "error"],
-      bank_type: ["bpi", "revolut", "other"],
+      bank_type: ["bpi", "revolut"],
       bank_type_old: [
         "bpi",
         "cgd",

@@ -74,13 +74,15 @@ export default function InvoicesPage() {
       <PageHeader
         title="Invoices"
         description="Manage your invoices and match them with transactions"
-        action={{
-          label: "New Invoice",
-          icon: Plus,
-          onClick: () => {
-            /* TODO: Implement new invoice action */
+        actions={[
+          {
+            label: "New Invoice",
+            icon: Plus,
+            onClick: () => {
+              /* TODO: Implement new invoice action */
+            },
           },
-        }}
+        ]}
       />
 
       {invoices.length === 0 ? (

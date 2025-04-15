@@ -1,7 +1,13 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { Building2, CreditCard, Settings } from "lucide-react";
+import {
+  Building2,
+  CreditCard,
+  Settings,
+  ShoppingBag,
+  Tag,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -15,6 +21,16 @@ const sidebarNavItems = [
     title: "Bank Accounts",
     href: "/settings/bank-accounts",
     icon: CreditCard,
+  },
+  {
+    title: "Categories",
+    href: "/settings/categories",
+    icon: Tag,
+  },
+  {
+    title: "Vendors",
+    href: "/settings/vendors",
+    icon: ShoppingBag,
   },
   {
     title: "General",
@@ -31,7 +47,7 @@ export default function SettingsLayout({ children }: SettingsLayoutProps) {
   const pathname = usePathname();
 
   return (
-    <div className="flex flex-col space-y-8 lg:flex-row lg:space-x-12 lg:space-y-0 mt-8">
+    <div className="flex flex-col space-y-8 lg:flex-row lg:space-x-12 lg:space-y-0">
       <aside className="lg:w-1/4">
         <nav className="flex flex-col space-y-1">
           {sidebarNavItems.map((item) => (
