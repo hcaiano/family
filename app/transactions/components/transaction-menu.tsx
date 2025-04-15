@@ -76,6 +76,39 @@ export function TransactionMenu({
     };
 
     fetchData();
+
+    // Set up real-time subscriptions
+    const channel = supabase
+      .channel("menu-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "vendors",
+        },
+        () => {
+          console.log("Vendors changed, refreshing...");
+          fetchData();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "categories",
+        },
+        () => {
+          console.log("Categories changed, refreshing...");
+          fetchData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [supabase]);
 
   const assignVendor = async (vendor: Vendor | null) => {
@@ -85,7 +118,7 @@ export function TransactionMenu({
       const updates: {
         vendor_id: string | null;
         updated_at: string;
-        category?: string | null;
+        category_id?: string | null;
       } = {
         vendor_id: vendor?.id || null,
         updated_at: new Date().toISOString(),
@@ -93,21 +126,34 @@ export function TransactionMenu({
 
       // If vendor has a category, also assign that category
       if (vendor?.category_id) {
-        updates.category = vendor.category_id;
+        updates.category_id = vendor.category_id;
       }
+
+      // Optimistically update the UI (Show loading toast)
+      const toastId = toast.loading(
+        vendor ? `Assigning to ${vendor.name}...` : "Removing vendor..."
+      );
 
       const { error } = await supabase
         .from("transactions")
         .update(updates)
-        .eq("id", transactionId);
+        .eq("id", transactionId)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        toast.error(error.message || "Failed to assign vendor", {
+          id: toastId,
+        });
+        throw error; // Throw error to be caught by catch block
+      }
 
-      toast.success(vendor ? `Assigned to ${vendor.name}` : "Vendor removed");
-      onUpdate();
-    } catch (error) {
+      toast.success(vendor ? `Assigned to ${vendor.name}` : "Vendor removed", {
+        id: toastId,
+      });
+    } catch (error: any) {
       console.error("Error assigning vendor:", error);
-      toast.error("Failed to assign vendor");
+      // Refresh the data to ensure UI is in sync on error
+      onUpdate();
     } finally {
       setLoading(false);
     }
@@ -117,25 +163,40 @@ export function TransactionMenu({
     try {
       setLoading(true);
 
+      const categoryName =
+        categories.find((c) => c.id === categoryId)?.name || "None";
+
+      // Optimistically update the UI (Show loading toast)
+      const toastId = toast.loading(
+        categoryId
+          ? `Setting category to ${categoryName}...`
+          : "Removing category..."
+      );
+
       const { error } = await supabase
         .from("transactions")
         .update({
-          category: categoryId,
+          category_id: categoryId,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", transactionId);
+        .eq("id", transactionId)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        toast.error(error.message || "Failed to assign category", {
+          id: toastId,
+        });
+        throw error; // Throw error to be caught by catch block
+      }
 
-      const categoryName =
-        categories.find((c) => c.id === categoryId)?.name || "None";
       toast.success(
-        categoryId ? `Category set to ${categoryName}` : "Category removed"
+        categoryId ? `Category set to ${categoryName}` : "Category removed",
+        { id: toastId }
       );
-      onUpdate();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error assigning category:", error);
-      toast.error("Failed to assign category");
+      // Refresh the data to ensure UI is in sync on error
+      onUpdate();
     } finally {
       setLoading(false);
     }

@@ -81,20 +81,11 @@ export function VendorList() {
   const handleDelete = async () => {
     if (!deletingId) return;
 
+    const toastId = toast.loading("Deleting vendor...");
+
     try {
-      // Check if vendor is in use by any transactions
-      const { data: transactionsUsingVendor, error: txError } = await supabase
-        .from("transactions")
-        .select("id")
-        .eq("vendor_id", deletingId)
-        .limit(1);
-
-      if (txError) throw txError;
-
-      if (transactionsUsingVendor && transactionsUsingVendor.length > 0) {
-        toast.error("Cannot delete vendor that is in use by transactions");
-        return;
-      }
+      // Remove the check for transactions using the vendor
+      // The database constraint ON DELETE SET NULL handles unlinking
 
       // Delete the vendor
       const { error } = await supabase
@@ -105,12 +96,14 @@ export function VendorList() {
       if (error) throw error;
 
       setVendors(vendors.filter((v) => v.id !== deletingId));
-      toast.success("Vendor deleted successfully");
-    } catch (error) {
-      console.error("Error deleting vendor:", error);
-      toast.error("Failed to delete vendor");
+      toast.success("Vendor deleted successfully", { id: toastId });
+    } catch (error: any) {
+      console.error("Error deleting vendor (Supabase error object):", error);
+      toast.error(error?.message || "Failed to delete vendor", { id: toastId });
     } finally {
       setDeletingId(null);
+      // Optionally, trigger a refresh of related data if needed elsewhere
+      // router.refresh();
     }
   };
 

@@ -66,21 +66,9 @@ export function CategoryList() {
   const handleDelete = async () => {
     if (!deletingId) return;
 
+    const toastId = toast.loading("Deleting category...");
+
     try {
-      // Check if category is in use by any vendors
-      const { data: vendorsUsingCategory, error: vendorsError } = await supabase
-        .from("vendors")
-        .select("id")
-        .eq("category_id", deletingId)
-        .limit(1);
-
-      if (vendorsError) throw vendorsError;
-
-      if (vendorsUsingCategory && vendorsUsingCategory.length > 0) {
-        toast.error("Cannot delete category that is in use by vendors");
-        return;
-      }
-
       // Delete the category
       const { error } = await supabase
         .from("categories")
@@ -90,12 +78,16 @@ export function CategoryList() {
       if (error) throw error;
 
       setCategories(categories.filter((cat) => cat.id !== deletingId));
-      toast.success("Category deleted successfully");
-    } catch (error) {
-      console.error("Error deleting category:", error);
-      toast.error("Failed to delete category");
+      toast.success("Category deleted successfully", { id: toastId });
+    } catch (error: any) {
+      console.error("Error deleting category (Supabase error object):", error);
+      toast.error(error?.message || "Failed to delete category", {
+        id: toastId,
+      });
     } finally {
       setDeletingId(null);
+      // Optionally, trigger a refresh of related data if needed elsewhere
+      // router.refresh();
     }
   };
 
