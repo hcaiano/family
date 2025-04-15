@@ -17,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Gatti Caiano - Family Finance",
-  description: "Manage your family finances",
+  title: "Faturas",
+  description: "Manage your finances",
 };
 
 export default async function RootLayout({
