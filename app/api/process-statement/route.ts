@@ -31,6 +31,19 @@ interface RequestPayload {
   bankAccountId: string;
 }
 
+type ParsedTransaction = {
+  description: string;
+  amount: number;
+  date: string;
+  currency: string;
+  source_id?: string;
+};
+
+type StatementParseResult = {
+  transactions: ParsedTransaction[];
+  error?: string;
+};
+
 export async function POST(req: Request) {
   console.log("🟢 API: Starting process-statement");
 
@@ -169,7 +182,7 @@ export async function POST(req: Request) {
     }
 
     // 6. Process File Based on Bank Type
-    let transactionsToInsert: TransactionInsert[] = [];
+    const transactionsToInsert: TransactionInsert[] = [];
     let processedCount = 0;
     let skippedCount = 0;
     let errorCount = 0;

@@ -48,12 +48,10 @@ export function Navigation() {
     <nav className="border-b">
       <div className="container">
         <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center gap-6">
-            <Link href="/" className="flex items-center space-x-2">
-              <span className="text-xl font-bold text-primary">
-                Gatti Caiano
-              </span>
-            </Link>
+          <Link href="/" className="flex items-center space-x-2">
+            <span className="text-xl font-bold text-primary">Faturas</span>
+          </Link>
+          <div className="flex items-center gap-8">
             {links.map((link) => (
               <Link
                 key={link.href}

@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Card,
   CardContent,
@@ -88,21 +88,48 @@ export default function BankAccountsPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const supabase = createClient();
 
+  const fetchBankAccounts = useCallback(async () => {
+    try {
+      const { data: accounts, error } = await supabase
+        .from("bank_accounts")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      setBankAccounts(accounts || []);
+    } catch (error) {
+      console.error("Error fetching bank accounts:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase]);
+
   useEffect(() => {
     const fetchUser = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      if (user) {
-        setUserId(user.id);
-      }
+      setUserId(user?.id || null);
     };
     fetchUser();
-  }, []);
+  }, [supabase.auth]);
+
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      fetchBankAccounts();
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase.auth, fetchBankAccounts]);
 
   useEffect(() => {
     fetchBankAccounts();
-  }, [userId]);
+  }, [fetchBankAccounts]);
 
   const form = useForm({
     defaultValues: {
@@ -146,29 +173,6 @@ export default function BankAccountsPage() {
       }
     },
   });
-
-  const fetchBankAccounts = async () => {
-    try {
-      if (!userId) {
-        setBankAccounts([]);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("bank_accounts")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setBankAccounts(data || []);
-    } catch (error) {
-      toast.error("Failed to load bank accounts");
-      console.error("Error:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const deleteBankAccount = async (id: string) => {
     try {

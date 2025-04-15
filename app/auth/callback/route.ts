@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 
     if (user) {
       // Check if profile exists
-      const { data: _profile, error: profileError } = await supabase
+      const { error: profileError } = await supabase
         .from("profiles")
         .select()
         .eq("id", user.id)
