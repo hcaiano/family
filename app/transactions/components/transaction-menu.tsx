@@ -273,11 +273,7 @@ export function TransactionMenu({
                 onClick={() => assignVendor(vendor)}
               >
                 <span>{vendor.name}</span>
-                {vendor.is_subscription && (
-                  <Badge className="ml-2 mr-auto bg-green-500 text-white">
-                    Subscription
-                  </Badge>
-                )}
+                {vendor.is_subscription && <Badge>Subscription</Badge>}
                 {vendorId === vendor.id && (
                   <Check className="ml-auto h-4 w-4" />
                 )}
