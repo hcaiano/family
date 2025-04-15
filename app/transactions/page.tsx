@@ -125,7 +125,7 @@ export default function TransactionsPage() {
         const status = row.getValue("status") as string;
         return (
           <Badge
-            className={status === "matched" ? "bg-green-500" : "bg-red-500"}
+            colorScheme={status === "matched" ? "green" : "red"}
             variant="solid"
           >
             {status === "matched" ? "Matched" : "Unmatched"}

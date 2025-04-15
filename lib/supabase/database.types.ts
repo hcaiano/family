@@ -373,6 +373,10 @@ export type Database = {
       }
       transactions: {
         Row: {
+          ai_analysis_status:
+            | Database["public"]["Enums"]["ai_analysis_status"]
+            | null
+          ai_extracted_vendor: string | null
           amount: number
           bank_account_id: string | null
           category_id: string | null
@@ -395,6 +399,10 @@ export type Database = {
           vendor_id: string | null
         }
         Insert: {
+          ai_analysis_status?:
+            | Database["public"]["Enums"]["ai_analysis_status"]
+            | null
+          ai_extracted_vendor?: string | null
           amount: number
           bank_account_id?: string | null
           category_id?: string | null
@@ -417,6 +425,10 @@ export type Database = {
           vendor_id?: string | null
         }
         Update: {
+          ai_analysis_status?:
+            | Database["public"]["Enums"]["ai_analysis_status"]
+            | null
+          ai_extracted_vendor?: string | null
           amount?: number
           bank_account_id?: string | null
           category_id?: string | null
@@ -539,7 +551,12 @@ export type Database = {
       }
     }
     Enums: {
-      ai_analysis_status: "pending" | "processing" | "completed" | "error"
+      ai_analysis_status:
+        | "pending"
+        | "processing"
+        | "completed"
+        | "error"
+        | "needs_vendor_review"
       bank_type: "bpi" | "revolut"
       bank_type_old:
         | "bpi"
@@ -677,7 +694,13 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      ai_analysis_status: ["pending", "processing", "completed", "error"],
+      ai_analysis_status: [
+        "pending",
+        "processing",
+        "completed",
+        "error",
+        "needs_vendor_review",
+      ],
       bank_type: ["bpi", "revolut"],
       bank_type_old: [
         "bpi",

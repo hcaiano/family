@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/transactions/analyze-batch",
+      "schedule": "*/10 * * * *"
+    }
+  ]
+}

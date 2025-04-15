@@ -3,177 +3,149 @@ description:
 globs: 
 alwaysApply: true
 ---
-# Family App - Development Plan
+# Family App - Development Plan (MVP Focused)
 
-**Core Goal:** Build a scalable web application using Next.js 15 and Supabase (DB/Auth/Storage) to help Portuguese users manage finances by importing bank statements using **rule-based parsing**, uploading/syncing invoices from Cloud Storage (Dropbox/Google Drive), automatically extracting invoice data using **specialized Document AI**, enriching transactions with vendor/category using **LLMs**, matching transactions to invoices, providing read-only accountant access, and exporting processed documents back to Cloud Storage.
+**Core Goal (MVP):** Build a web application using Next.js 15 and Supabase to help Portuguese users manage finances by:
+1.  Allowing management of multiple bank accounts.
+2.  Importing bank statements via file upload using **rule-based parsing**.
+3.  Automatically enriching transactions with **vendor identification using LLMs**.
+4.  Allowing manual upload of invoices.
+5.  Automatically extracting key invoice data using **specialized Document AI**.
+6.  **Matching transactions to invoices** based on enriched data.
+7.  Providing a UI for reviewing and manually reconciling matches.
 
 **Technology Stack:**
 
 *   **Frontend:** Next.js 15 (App Router) with React & Tailwind CSS. ([x] Done)
-*   **Backend Logic:** Next.js API Routes (Edge/Serverless Functions on Vercel). ([ ] Partially Done)
+*   **Backend Logic:** Next.js API Routes (Edge/Serverless Functions on Vercel). ([/] Partially Done)
 *   **Database:** Supabase PostgreSQL. ([x] Done)
-*   **Authentication:** Supabase Auth (with Row Level Security & potentially custom claims for roles). ([x] Done - Base Auth)
-*   **Storage:** Supabase Storage (intermediate storage) & Dropbox/Google Drive APIs (primary user storage). ([x] Done - Supabase Storage)
-*   **Scheduled Tasks:** Vercel Cron Jobs. ([ ] Not Done)
+*   **Authentication:** Supabase Auth. ([x] Done - Base Auth)
+*   **Storage:** Supabase Storage (for statements and invoices). ([x] Done)
 *   **AI Integration:**
-    *   Calling external **Specialized Document AI APIs** (e.g., AWS Textract, Google Document AI) for invoice parsing. ([ ] Not Done)
-    *   Calling external **LLM APIs via OpenRouter (or similar platform)** for asynchronous transaction enrichment (vendor/category). ([ ] Not Done)
+    *   Calling external **Specialized Document AI APIs** for invoice parsing. ([ ] Not Done)
+    *   Calling external **LLM APIs (e.g., via OpenRouter)** for asynchronous transaction vendor enrichment. ([ ] Not Done)
 *   **File Parsing:** Libraries within Next.js API Routes for **rule-based statement parsing** (e.g., `papaparse`, `xlsx`). ([x] Partially Done - Revolut/BPI rules exist)
-*   **Cloud Storage APIs:** Dropbox API, Google Drive API. ([ ] Not Done)
+*   **Cron Jobs:** Vercel Cron Jobs (for batch processing). ([ ] Not Done)
 
 **Data Model (Supabase - `public` schema):**
 
-*   `profiles`: ([/] Partially Done - Exists, Needs Enhancement)
-    *   **Needs:**
-        *   `role` (text, e.g., 'user', 'accountant', default 'user')
-        *   `dropbox_access_token` (text, encrypted, nullable)
-        *   `dropbox_refresh_token` (text, encrypted, nullable)
-        *   `gdrive_access_token` (text, encrypted, nullable)
-        *   `gdrive_refresh_token` (text, encrypted, nullable)
-        *   `invited_by_user_id` (uuid, FK to `profiles.id`, nullable - for accountants)
+*   `profiles`: ([/] Partially Done - Exists, Needs Core Enhancements)
+    *   **Needs (Core):** `role` (text, e.g., 'user', 'accountant', default 'user') - *Defer accountant logic, but add field*.
+    *   **Needs (Deferred):** Encrypted cloud storage tokens (`dropbox_*`, `gdrive_*`), `invited_by_user_id`.
 *   `bank_accounts`: **(New Table)** ([ ] Not Done)
-    *   `id`, `user_id`, `account_name`, `bank_identifier`, `account_number_last4`, `currency`, `created_at`, `updated_at`
-*   `statements`: ([/] Partially Done - Exists, Needs Enhancement)
-    *   **Needs:** `bank_account_id` FK, `status` enum ('uploaded', 'parsing', 'parsed', 'error').
-*   `transactions`: ([/] Partially Done - Exists, Needs Enhancement)
-    *   **Needs:** `bank_account_id` FK, `statement_id` FK.
-    *   **Needs:** `ai_analysis_status` (enum: 'pending', 'processing', 'completed', 'error', default 'pending').
-    *   **Needs:** `ai_extracted_vendor` (text, nullable).
-    *   **Needs:** `ai_extracted_category` (text, nullable).
-    *   **Needs:** `ai_extraction_confidence` (numeric, nullable - score from AI analysis).
-    *   **Needs:** `ai_summary` (text, nullable - for potential AI-generated insights).
-    *   **Needs:** Deprecate `source_bank`.
-    *   **Needs:** Consider `has_multiple_invoices` (boolean, default false).
-*   `invoices`: ([/] Partially Done - Exists, Needs Enhancement)
-    *   **Needs:** Expanded `status` enum ('uploaded', 'pending_extraction', 'extraction_error', 'pending_match', 'matched', 'match_failed', ...), `extracted_*`, `manual_*`, `nif_number`, `invoice_number`, `raw_text` fields.
-    *   **Needs:** `cloud_storage_status` (enum: 'pending_sync', 'syncing', 'synced', 'sync_error', default null).
-    *   **Needs:** `cloud_storage_path` (text, nullable).
-    *   **Needs:** `source` (enum: 'upload', 'dropbox', 'gdrive', default 'upload').
+    *   `id` (uuid, PK), `user_id` (uuid, FK to `auth.users`, not null), `account_name` (text, not null), `bank_identifier` (text, nullable), `account_number_last4` (text, nullable), `currency` (text, not null), `created_at` (timestamptz, default now()), `updated_at` (timestamptz, default now()).
+*   `vendors`: **(New Table - Core for Matching)** ([ ] Not Done)
+    *   `id` (uuid, PK), `user_id` (uuid, FK to `auth.users`, not null), `name` (text, not null), `created_at` (timestamptz, default now()), `updated_at` (timestamptz, default now()).
+    *   **Constraint:** UNIQUE(`user_id`, `name`).
+*   `statements`: ([/] Partially Done - Exists, Needs Core Enhancements)
+    *   **Needs (Core):** `bank_account_id` (uuid, FK to `bank_accounts.id`, not null), `status` (enum: 'uploaded', 'parsing', 'parsed', 'error', default 'uploaded').
+*   `transactions`: ([/] Partially Done - Exists, Needs Core Enhancements)
+    *   **Needs (Core):**
+        *   `bank_account_id` (uuid, FK to `bank_accounts.id`, not null).
+        *   `statement_id` (uuid, FK to `statements.id`, not null).
+        *   `vendor_id` (uuid, FK to `vendors.id`, nullable) - *Crucial for matching*.
+        *   `ai_analysis_status` (enum: 'pending', 'processing', 'completed', 'error', 'needs_vendor_review', default 'pending').
+        *   `ai_extracted_vendor` (text, nullable) - Raw LLM suggestion.
+        *   `invoice_id` (uuid, FK to `invoices.id`, nullable) - *The goal link*.
+    *   **Needs (Deferred):** `ai_extracted_category`, `ai_extraction_confidence`, `ai_summary`, `has_multiple_invoices`.
+    *   **Deprecate:** `source_bank`.
+*   `invoices`: ([/] Partially Done - Exists, Needs Core Enhancements)
+    *   **Needs (Core):**
+        *   `status` (enum: 'uploaded', 'pending_extraction', 'extraction_error', 'pending_match', 'matched', 'match_failed', 'manual_match', default 'uploaded').
+        *   `extracted_vendor_name` (text, nullable).
+        *   `extracted_invoice_date` (date, nullable).
+        *   `extracted_total_amount` (numeric, nullable).
+        *   `extracted_currency` (text, nullable).
+        *   `extracted_nif_number` (text, nullable).
+        *   `extracted_invoice_number` (text, nullable).
+        *   `manual_vendor_name` (text, nullable), `manual_invoice_date` (date, nullable), etc. (for overrides).
+        *   `source` (enum: 'upload', 'dropbox', 'gdrive', default 'upload').
+    *   **Needs (Deferred):** `cloud_storage_status`, `cloud_storage_path`, `raw_text`.
 
 ---
 
-**Development Phases:**
+**Core Development Path (MVP Steps):**
 
-**Phase 1: Core Setup & Auth**
-*   [x] Initialize Next.js project.
-*   [x] Setup Supabase project.
-*   [x] Implement Google OAuth.
-*   [/] Create basic protected routes/layout.
-*   [x] Setup basic UI components.
+**Step 1: Foundational Database Schema (Phase 2 Core)**
+*   [ ] **Create Migration:**
+    *   Add `role` to `profiles`.
+    *   Create `bank_accounts` table.
+    *   Create `vendors` table.
+    *   Add `bank_account_id`, `status` to `statements`.
+    *   Add `bank_account_id`, `statement_id`, `vendor_id`, `ai_analysis_status`, `ai_extracted_vendor`, `invoice_id` to `transactions`. Deprecate `source_bank`.
+    *   Add `status`, `extracted_*`, `manual_*`, `source` fields to `invoices`.
+*   [ ] **Apply Migration:** Use Supabase tooling.
+*   [ ] **Update Types:** Run `pnpm types:supabase`.
 
-**Phase 2: Foundational Data Model Enhancements**
-*   [x] **Update `profiles` table schema:** Add `role`, encrypted token fields, `invited_by_user_id`. (Migration needed)
-*   [x] **Create `bank_accounts` table schema.** (Migration needed)
-*   [x] **Update `statements` table schema:** Add `bank_account_id` FK, `status` field. (Migration needed)
-*   [x] **Update `transactions` table schema:** Add `bank_account_id` FK, `statement_id` FK, AI fields (set default `ai_analysis_status` to 'pending'). Deprecate `source_bank`. Add `has_multiple_invoices` if desired. (Migration needed)
-*   [x] **Update `invoices` table schema:** Add new statuses, extracted/manual fields, cloud sync fields, `source`. (Migration needed)
-*   [ ] **Implement Encryption:** Set up mechanism for encrypting/decrypting cloud storage tokens.
+**Step 2: Bank Account Management (Phase 3 Core)**
+*   [x] Build UI form for adding bank accounts (`/bank-accounts/new`).
+*   [ ] Implement API route/Server Action (`/api/bank-accounts`) for saving accounts securely.
+*   [ ] Create UI page (`/bank-accounts`) to list existing accounts.
 
-**Phase 3: Multi-Account Management UI & Logic**
-*   [x] Build UI form for adding bank accounts.
-*   [ ] Implement API route/Server Action (`/api/bank-accounts`) for saving accounts.
-*   [ ] Create UI page (`/bank-accounts`) to list accounts.
+**Step 3: Statement Processing (Phase 5 & 6 Core)**
+*   [/] Update statement upload UI: Add dropdown to select target `bank_account_id`.
+*   [ ] Enhance API Route (`/api/process-statement`, Serverless):
+    *   Accept `bank_account_id`.
+    *   Use existing rule-based parsing logic (BPI/Revolut).
+    *   Insert validated transactions into DB, linking `bank_account_id`, `statement_id`, and setting `ai_analysis_status` to 'pending'.
+    *   Update `statements` status ('parsing', 'parsed', 'error').
+*   [ ] Trigger `/api/process-statement` from the frontend after successful upload.
+*   [/] Update transaction list UI (`/transactions`) to show raw data initially, filterable by `bank_account_id`.
 
-**Phase 4: Cloud Storage Connection UI (Settings)**
-*   [ ] Add Settings page UI.
-*   [ ] Implement OAuth flow UI buttons ("Connect Dropbox", "Connect Google Drive").
-*   [ ] Create API routes (`/api/auth/[provider]/connect`, `/api/auth/[provider]/callback`) for OAuth flow and saving encrypted tokens.
-*   [ ] Add UI to show connection status and allow disconnection.
-
-**Phase 5: Adapt Statement Upload & Display for Multi-Account**
-*   [/] Update statement upload UI: Select `bank_account_id`, trigger parsing API (`/api/process-statement`).
-*   [/] Update transaction list UI: Filter/group by account. Display placeholder/raw data initially, update when AI enrichment (Phase 8) completes.
-*   [/] Update statement list UI: Show associated account.
-
-**Phase 6: Rule-Based Statement Parsing Logic (Next.js API Route)**
-*   [ ] Enhance API Route (`/api/process-statement`, Serverless recommended).
-*   [x] **Maintain Rule-Based Parsing:** Refine and extend existing parsing logic for specific bank CSV/XLSX formats (BPI/Revolut) using libraries like `papaparse` and `xlsx`.
-*   [ ] Add logic to handle new bank formats by adding specific rules/parsers as needed.
-*   [ ] Insert validated transactions into DB via Supabase client, **setting `ai_analysis_status` to 'pending'**.
-*   [ ] Update statement status ('parsing', 'parsed', 'error').
-*   [ ] Ensure API is triggered from frontend after upload.
-
-**Phase 7: Invoice Processing from Cloud Storage (Input Sync - Cron)**
-*   [ ] Create Next.js API Route (`/api/sync/cloud-input`, Serverless).
-    *   Implement logic to check user's cloud storage input folder via API.
-    *   Find new files, download temporarily, upload to Supabase Storage.
-    *   Create `invoices` record in DB with status 'pending_extraction'.
-    *   Move/delete processed file in user's cloud storage.
-    *   Optionally: Trigger Invoice AI Extraction (Phase 9) immediately via API call or rely on scheduled job.
-*   [ ] Configure a Vercel Cron Job for this route (e.g., runs periodically to check for new files).
-
-**Phase 8: Asynchronous AI Transaction Enrichment (Next.js API Route + Cron)**
+**Step 4: Vendor Enrichment (Phase 8 Core)**
 *   [ ] Create API Route (`/api/transactions/analyze-batch`, Serverless).
-*   [ ] Implement logic to fetch a batch of transactions needing analysis (`ai_analysis_status` = 'pending').
-*   [ ] **Call LLM (via OpenRouter):**
-    *   Send relevant transaction details (e.g., description, amount, date, currency - *not* the full statement) to the chosen model.
-    *   Develop prompts for vendor identification and category assignment.
-    *   Optionally, add prompts for generating brief summaries or flagging anomalies.
-*   [ ] Update `transactions` table with `ai_extracted_vendor`, `ai_extracted_category`, `ai_summary`, `ai_analysis_status` ('completed' or 'error'). Store confidence scores if available.
-*   [ ] Configure Vercel Cron Job to run this batch processing route periodically (e.g., every few minutes or hourly).
-*   [ ] Update frontend UI (e.g., via real-time subscription or polling) to display enriched data once available. Allow user override of AI suggestions.
+*   [ ] Implement logic to fetch a batch of transactions (`ai_analysis_status` = 'pending').
+*   [ ] **Call LLM:** Send description, amount, date etc. -> Get potential vendor name (`ai_extracted_vendor`).
+*   [ ] **Implement Vendor Matching & Creation:**
+    *   Match `ai_extracted_vendor` against `vendors` table.
+    *   If match: Link `transactions.vendor_id`. Set status 'completed'.
+    *   If no match (but recurring): Auto-create `vendors` record, link `transactions.vendor_id`. Set status 'completed'.
+    *   If no match (infrequent): Set status 'needs_vendor_review'.
+*   [ ] Update `transactions` record with `vendor_id` and `ai_analysis_status`.
+*   [ ] Configure Vercel Cron Job to run `/api/transactions/analyze-batch` periodically.
+*   [ ] Update transaction list UI: Display `vendors.name` (via join) when `vendor_id` is populated. Add indicator for 'needs_vendor_review'. *Allowing user override can be a fast-follow.*
 
-**Phase 9: Specialized AI Invoice Analysis & Extraction (Next.js API Route + Cron/Trigger)**
-*   [ ] Create API Route (`/api/invoices/extract-batch`, Serverless recommended).
-*   [ ] Implement logic to handle a batch of invoices needing extraction (status 'pending_extraction').
-*   [ ] **Integrate with a Specialized Document AI Service:**
-    *   Choose a service (e.g., AWS Textract AnalyzeExpense, Google Document AI Invoice Parser).
-    *   Set up necessary cloud credentials and SDK/API clients within the API route environment.
-    *   Fetch invoice files from Supabase Storage and send them to the chosen service API.
-*   [ ] **Process Structured Output:**
-    *   Parse the structured JSON response from the Document AI service.
-    *   Extract key metadata: Vendor Name, Invoice Date, Total Amount, Currency, NIF/VAT Number, Invoice Number.
-*   [ ] **Implement Validation:**
-    *   Perform basic checks on extracted data (e.g., data types, valid dates).
-    *   Utilize confidence scores provided by the service, if available.
-    *   Handle API errors or low-confidence results (e.g., flag for manual review, set status to 'extraction_error').
-*   [ ] Update `invoices` table with extracted data (`extracted_*` fields) and set status (e.g., 'pending_match' or 'extraction_error').
-*   [ ] Configure a Vercel Cron Job to run this batch extraction route periodically OR trigger it directly after Phase 7 or direct uploads.
-*   [ ] Update Invoice list UI to show extracted data and status, allowing for manual correction.
+**Step 5: Invoice Processing (Phase 9 Core)**
+*   [ ] Build basic UI (`/invoices/new` or similar) for manual invoice file upload (PDF/Image) directly to Supabase Storage.
+*   [ ] Create `invoices` record upon upload with `status` 'uploaded' or 'pending_extraction'.
+*   [ ] Create API Route (`/api/invoices/extract-batch`, Serverless).
+*   [ ] Implement logic to fetch batch of invoices ('pending_extraction').
+*   [ ] **Integrate with Specialized Document AI Service:** Fetch file from Supabase Storage, send to Textract/Google Doc AI, process structured response.
+*   [ ] Update `invoices` record with `extracted_*` data and set status ('pending_match' or 'extraction_error').
+*   [ ] Configure Vercel Cron Job (or trigger after upload) to run `/api/invoices/extract-batch`.
+*   [ ] Update Invoice list UI (`/invoices`) to show extracted data and status. *Allowing manual correction can be a fast-follow.*
 
-**Phase 10: Matching Engine & Reconciliation UI (Next.js API Route + Cron)**
+**Step 6: Matching Engine & Reconciliation (Phase 10 Core)**
 *   [ ] Create API Route (`/api/matching/run`, Serverless).
-*   [ ] Implement matching logic based on rules (amount, date proximity, NIF) **leveraging AI-enriched vendor/category data from transactions (Phase 8) and structured data from invoices (Phase 9) for improved accuracy**.
-*   [ ] Update matched records in Supabase (link `invoices.id` to `transactions.invoice_id` and update statuses).
-*   [ ] Configure Vercel Cron Job.
-*   [/] Update UIs to reflect matches.
-*   [/] Build/Refine manual matching UI (side-by-side view).
-*   [ ] Add UI for editing invoice data.
-*   [x] Allow marking transactions as 'ignored'.
-*   [/] Implement/Update API routes/Server Actions for manual reconciliation.
-
-**Phase 11: Cloud Storage Export (Output Sync - Cron)**
-*   [ ] Create Next.js API Route (`/api/sync/cloud-output`, Serverless).
-    *   Implement logic to find 'matched' invoices pending sync.
-    *   Fetch linked transaction.
-    *   Determine standardized target cloud path/filename (handle multi-invoice).
-    *   Fetch file from Supabase Storage, upload via Dropbox/GDrive API.
-    *   Update `invoices` record status and path.
-*   [ ] Configure a Vercel Cron Job for this route.
-
-**Phase 12: Accountant Role & Access Control**
-*   [ ] **Backend:**
-    *   Implement RBAC checks in API routes/Server Actions.
-    *   Adjust Supabase RLS policies for read-only accountant access (scoped by `invited_by_user_id`, excluding sensitive fields).
-*   [ ] **Frontend:**
-    *   Create UI for users to invite accountants (creates profile, sends invite).
-    *   Adapt login/signup for accountants.
-    *   Conditionally render UI based on role.
-    *   Verify data filtering for accountants.
-
-**Phase 13: Refinements & Scalability**
-*   [ ] Add more bank statement parsers (rule-based).
-*   [ ] **Implement AI-driven Statement Summarization/Insights Generation (via OpenRouter in Phase 8 or separate phase, using enriched transaction data).**
-*   [ ] Improve AI prompts for transaction analysis, matching hints, filename standardization.
-*   [ ] Add reporting/dashboards (considering accountant view).
-*   [ ] Optimize DB queries/indexes.
-
-**Phase 14: Monetization & Advanced Features (Future)**
-*   [ ] Tiered plans, etc.
+*   [ ] Implement core matching logic:
+    *   Fetch transactions with `vendor_id` and invoices with `extracted_vendor_name` (status 'pending_match').
+    *   Match based on `vendor_id`/`extracted_vendor_name` similarity, date proximity, amount.
+    *   Prioritize high-confidence matches first.
+*   [ ] Update matched records: Link `transactions.invoice_id` and update `invoices.status` to 'matched'. Update `transactions` status if needed.
+*   [ ] Configure Vercel Cron Job to run `/api/matching/run` periodically.
+*   [/] Update Reconciliation UI (e.g., `/reconciliation` or enhance `/transactions`):
+    *   Clearly display matched transaction-invoice pairs.
+    *   Show unmatched transactions and invoices.
+    *   Refine existing manual matching UI to allow linking a transaction to an invoice (sets `transactions.invoice_id`, updates statuses).
+*   [x] Allow marking transactions as 'ignored' for matching.
+*   [/] Ensure manual reconciliation API updates statuses correctly.
 
 ---
 
-**Next Steps:**
+**Deferred Features / Phases (Post-MVP):**
 
-1.  **Focus on Phase 2:** Implement the database schema changes via Supabase migrations (including new AI fields and updated invoice statuses).
-2.  **Proceed to Phase 3:** Build the UI and API logic for managing bank accounts.
+*   **Cloud Storage Integration (Phase 4, 7, 11):** Connecting Dropbox/Google Drive, background sync for input/output. Token encryption.
+*   **Accountant Role & Access Control (Phase 12):** Inviting accountants, RLS policies, UI adaptations.
+*   **Advanced AI Features (Phase 8, 13):** Category extraction, transaction summarization, improved prompts, AI matching hints.
+*   **UI/UX Refinements:** Advanced filtering/sorting, dashboards, vendor management screen, invoice data editing UI, handling multi-invoice scenarios.
+*   **Scalability & Optimizations (Phase 13):** DB indexing, performance tuning.
+*   **Expanded Bank Support (Phase 6):** Adding more rule-based parsers.
+*   **Monetization (Phase 14):** Tiered plans, etc.
+
+---
+
+**Immediate Next Steps:**
+
+1.  **Implement Step 1:** Create and apply the database migration for the core schema changes. Run `pnpm types:supabase`.
+2.  **Implement Step 2:** Build the API and UI for adding and listing bank accounts.
+3.  **Implement Step 3:** Adapt the statement upload process and the core parsing logic.
