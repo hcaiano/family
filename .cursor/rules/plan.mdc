@@ -3,7 +3,7 @@ description:
 globs: 
 alwaysApply: true
 ---
-# Family App - Development Plan (MVP Focused)
+# Faturas App - Development Plan (MVP Focused)
 
 **Core Goal (MVP):** Build a web application using Next.js 15 and Supabase to help Portuguese users manage finances by:
 1.  Allowing management of multiple bank accounts.

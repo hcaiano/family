@@ -7,7 +7,7 @@ import LogoutButton from "@/app/auth/components/logout-button";
 import { createClient } from "@/lib/supabase/client";
 import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
-import LoginButton from "../app/auth/components/login-button";
+import LoginButton from "@/app/auth/components/login-button";
 import { ThemeToggle } from "./theme-toggle";
 import { Settings } from "lucide-react";
 
