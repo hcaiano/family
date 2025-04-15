@@ -26,11 +26,6 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const supabase = await createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
   return (
     <html lang="en" suppressHydrationWarning>
       <body
@@ -42,7 +37,7 @@ export default async function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          {session && <Navigation />}
+          <Navigation />
           <main className="flex-1 container py-6">{children}</main>
           <Toaster />
         </ThemeProvider>
