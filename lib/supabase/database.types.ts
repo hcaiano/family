@@ -11,32 +11,116 @@ export type Database = {
     Tables: {
       bank_accounts: {
         Row: {
+          account_name: string
+          account_number_last4: string
+          bank_name: string | null
+          bank_type: Database["public"]["Enums"]["bank_type"]
           created_at: string
+          currency: string
           id: string
-          last_imported_at: string | null
-          name: string
-          type: string | null
+          updated_at: string
           user_id: string
         }
         Insert: {
+          account_name: string
+          account_number_last4: string
+          bank_name?: string | null
+          bank_type: Database["public"]["Enums"]["bank_type"]
           created_at?: string
+          currency?: string
           id?: string
-          last_imported_at?: string | null
-          name: string
-          type?: string | null
+          updated_at?: string
           user_id: string
         }
         Update: {
+          account_name?: string
+          account_number_last4?: string
+          bank_name?: string | null
+          bank_type?: Database["public"]["Enums"]["bank_type"]
           created_at?: string
+          currency?: string
           id?: string
-          last_imported_at?: string | null
-          name?: string
-          type?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      company_info: {
+        Row: {
+          address: string | null
+          city: string | null
+          company_name: string
+          country: string | null
+          created_at: string
+          email: string | null
+          id: string
+          nif: string
+          phone: string | null
+          postal_code: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          company_name: string
+          country?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          nif: string
+          phone?: string | null
+          postal_code?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          company_name?: string
+          country?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          nif?: string
+          phone?: string | null
+          postal_code?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      invitations: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          email: string
+          expires_at: string
+          id: string
+          token: string
+          user_id: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          expires_at: string
+          id?: string
+          token: string
+          user_id: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          expires_at?: string
+          id?: string
+          token?: string
           user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "bank_accounts_user_id_fkey"
+            foreignKeyName: "invitations_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -47,13 +131,27 @@ export type Database = {
       invoices: {
         Row: {
           amount: number | null
+          cloud_storage_path: string | null
+          cloud_storage_status:
+            | Database["public"]["Enums"]["cloud_storage_status"]
+            | null
           created_at: string
           currency: string | null
           dropbox_path: string | null
+          extracted_date: string | null
+          extracted_total: number | null
+          extracted_vendor: string | null
           file_name: string | null
           file_type: string | null
           id: string
-          invoice_date: string | null
+          invoice_number: string | null
+          issue_date: string | null
+          manual_date: string | null
+          manual_total: number | null
+          manual_vendor: string | null
+          nif_number: string | null
+          raw_text: string | null
+          source: Database["public"]["Enums"]["source_type"] | null
           status: Database["public"]["Enums"]["invoice_status"]
           storage_path: string
           transaction_id: string | null
@@ -64,13 +162,27 @@ export type Database = {
         }
         Insert: {
           amount?: number | null
+          cloud_storage_path?: string | null
+          cloud_storage_status?:
+            | Database["public"]["Enums"]["cloud_storage_status"]
+            | null
           created_at?: string
           currency?: string | null
           dropbox_path?: string | null
+          extracted_date?: string | null
+          extracted_total?: number | null
+          extracted_vendor?: string | null
           file_name?: string | null
           file_type?: string | null
           id?: string
-          invoice_date?: string | null
+          invoice_number?: string | null
+          issue_date?: string | null
+          manual_date?: string | null
+          manual_total?: number | null
+          manual_vendor?: string | null
+          nif_number?: string | null
+          raw_text?: string | null
+          source?: Database["public"]["Enums"]["source_type"] | null
           status?: Database["public"]["Enums"]["invoice_status"]
           storage_path: string
           transaction_id?: string | null
@@ -81,13 +193,27 @@ export type Database = {
         }
         Update: {
           amount?: number | null
+          cloud_storage_path?: string | null
+          cloud_storage_status?:
+            | Database["public"]["Enums"]["cloud_storage_status"]
+            | null
           created_at?: string
           currency?: string | null
           dropbox_path?: string | null
+          extracted_date?: string | null
+          extracted_total?: number | null
+          extracted_vendor?: string | null
           file_name?: string | null
           file_type?: string | null
           id?: string
-          invoice_date?: string | null
+          invoice_number?: string | null
+          issue_date?: string | null
+          manual_date?: string | null
+          manual_total?: number | null
+          manual_vendor?: string | null
+          nif_number?: string | null
+          raw_text?: string | null
+          source?: Database["public"]["Enums"]["source_type"] | null
           status?: Database["public"]["Enums"]["invoice_status"]
           storage_path?: string
           transaction_id?: string | null
@@ -116,30 +242,120 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          dropbox_access_token: string | null
+          dropbox_refresh_token: string | null
           full_name: string | null
+          gdrive_access_token: string | null
+          gdrive_refresh_token: string | null
           id: string
+          invited_by_user_id: string | null
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at: string
         }
         Insert: {
           avatar_url?: string | null
+          dropbox_access_token?: string | null
+          dropbox_refresh_token?: string | null
           full_name?: string | null
+          gdrive_access_token?: string | null
+          gdrive_refresh_token?: string | null
           id: string
+          invited_by_user_id?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string
         }
         Update: {
           avatar_url?: string | null
+          dropbox_access_token?: string | null
+          dropbox_refresh_token?: string | null
           full_name?: string | null
+          gdrive_access_token?: string | null
+          gdrive_refresh_token?: string | null
           id?: string
+          invited_by_user_id?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_invited_by_user_id_fkey"
+            columns: ["invited_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      statements: {
+        Row: {
+          bank_account_id: string | null
+          created_at: string | null
+          filename: string
+          id: string
+          source_bank: string
+          status: Database["public"]["Enums"]["statement_status"] | null
+          storage_path: string
+          transactions_count: number
+          updated_at: string | null
+          uploaded_at: string | null
+          user_id: string
+        }
+        Insert: {
+          bank_account_id?: string | null
+          created_at?: string | null
+          filename: string
+          id?: string
+          source_bank: string
+          status?: Database["public"]["Enums"]["statement_status"] | null
+          storage_path: string
+          transactions_count?: number
+          updated_at?: string | null
+          uploaded_at?: string | null
+          user_id: string
+        }
+        Update: {
+          bank_account_id?: string | null
+          created_at?: string | null
+          filename?: string
+          id?: string
+          source_bank?: string
+          status?: Database["public"]["Enums"]["statement_status"] | null
+          storage_path?: string
+          transactions_count?: number
+          updated_at?: string | null
+          uploaded_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "statements_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "bank_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       transactions: {
         Row: {
+          ai_analysis_status:
+            | Database["public"]["Enums"]["ai_analysis_status"]
+            | null
+          ai_extracted_category: string | null
+          ai_extracted_vendor: string | null
           amount: number
-          bank_account_id: string
+          bank_account_id: string | null
+          category: string | null
           created_at: string
           currency: string
           description: string | null
+          has_multiple_invoices: boolean | null
           id: string
           invoice_id: string | null
+          note: string | null
+          source_bank: string | null
+          source_id: string | null
+          statement_id: string | null
           status: Database["public"]["Enums"]["transaction_status"]
           transaction_date: string
           updated_at: string
@@ -147,13 +363,24 @@ export type Database = {
           vendor_guess: string | null
         }
         Insert: {
+          ai_analysis_status?:
+            | Database["public"]["Enums"]["ai_analysis_status"]
+            | null
+          ai_extracted_category?: string | null
+          ai_extracted_vendor?: string | null
           amount: number
-          bank_account_id: string
+          bank_account_id?: string | null
+          category?: string | null
           created_at?: string
           currency: string
           description?: string | null
+          has_multiple_invoices?: boolean | null
           id?: string
           invoice_id?: string | null
+          note?: string | null
+          source_bank?: string | null
+          source_id?: string | null
+          statement_id?: string | null
           status?: Database["public"]["Enums"]["transaction_status"]
           transaction_date: string
           updated_at?: string
@@ -161,13 +388,24 @@ export type Database = {
           vendor_guess?: string | null
         }
         Update: {
+          ai_analysis_status?:
+            | Database["public"]["Enums"]["ai_analysis_status"]
+            | null
+          ai_extracted_category?: string | null
+          ai_extracted_vendor?: string | null
           amount?: number
-          bank_account_id?: string
+          bank_account_id?: string | null
+          category?: string | null
           created_at?: string
           currency?: string
           description?: string | null
+          has_multiple_invoices?: boolean | null
           id?: string
           invoice_id?: string | null
+          note?: string | null
+          source_bank?: string | null
+          source_id?: string | null
+          statement_id?: string | null
           status?: Database["public"]["Enums"]["transaction_status"]
           transaction_date?: string
           updated_at?: string
@@ -190,6 +428,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "transactions_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "statements"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "transactions_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -203,16 +448,34 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_invitation_token: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
     }
     Enums: {
+      ai_analysis_status: "pending" | "processing" | "completed" | "error"
+      bank_type:
+        | "bpi"
+        | "cgd"
+        | "millennium"
+        | "santander"
+        | "novobanco"
+        | "bankinter"
+        | "revolut"
+        | "wise"
+        | "other"
+      cloud_storage_status: "pending_sync" | "syncing" | "synced" | "sync_error"
       invoice_status:
         | "pending_match"
         | "matched"
         | "match_failed"
         | "syncing"
         | "synced"
+      source_type: "upload" | "dropbox" | "gdrive"
+      statement_status: "uploaded" | "parsing" | "parsed" | "error"
       transaction_status: "unmatched" | "matched" | "ignored"
+      user_role: "user" | "accountant"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -328,6 +591,19 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      ai_analysis_status: ["pending", "processing", "completed", "error"],
+      bank_type: [
+        "bpi",
+        "cgd",
+        "millennium",
+        "santander",
+        "novobanco",
+        "bankinter",
+        "revolut",
+        "wise",
+        "other",
+      ],
+      cloud_storage_status: ["pending_sync", "syncing", "synced", "sync_error"],
       invoice_status: [
         "pending_match",
         "matched",
@@ -335,7 +611,10 @@ export const Constants = {
         "syncing",
         "synced",
       ],
+      source_type: ["upload", "dropbox", "gdrive"],
+      statement_status: ["uploaded", "parsing", "parsed", "error"],
       transaction_status: ["unmatched", "matched", "ignored"],
+      user_role: ["user", "accountant"],
     },
   },
 } as const

@@ -3,86 +3,152 @@ description: This is the initial plan of my application
 globs: 
 alwaysApply: false
 ---
+# Family App - Development Plan
 
-Okay, this sounds like a very useful application! Managing expenses and invoices, especially across personal and business contexts, can be a real headache. Combining bank statement data with invoice scans and syncing to Dropbox is a smart workflow.
+**Core Goal:** Build a scalable web application using Next.js 15 and Supabase (DB/Auth/Storage) to help Portuguese users manage finances by importing bank statements, uploading/syncing invoices from Cloud Storage (Dropbox/Google Drive), automatically matching them using AI hosted on Vercel, providing read-only accountant access, and exporting processed documents back to Cloud Storage in an organized manner.
 
-Here’s a plan outlining how we can build this using Next.js and Supabase:
+**Technology Stack:**
 
-**I. Core Architecture & Technology Choices**
+*   **Frontend:** Next.js 15 (App Router) with React & Tailwind CSS. ([x] Done)
+*   **Backend Logic:** Next.js API Routes (Edge/Serverless Functions on Vercel). ([ ] Partially Done)
+*   **Database:** Supabase PostgreSQL. ([x] Done)
+*   **Authentication:** Supabase Auth (with Row Level Security & potentially custom claims for roles). ([x] Done - Base Auth)
+*   **Storage:** Supabase Storage (intermediate storage) & Dropbox/Google Drive APIs (primary user storage). ([x] Done - Supabase Storage)
+*   **Scheduled Tasks:** Vercel Cron Jobs. ([ ] Not Done)
+*   **AI Integration:** Calling external AI APIs from Next.js API Routes. ([ ] Not Done)
+*   **File Parsing:** Libraries within Next.js API Routes. ([ ] Not Done)
+*   **Cloud Storage APIs:** Dropbox API, Google Drive API. ([ ] Not Done)
 
-1.  **Frontend:** Next.js (using the App Router for modern features and structure). We'll use React for building the UI components and likely Tailwind CSS for styling, as it integrates well with Next.js.
-2.  **Backend & Database:** Supabase will serve as our Backend-as-a-Service (BaaS).
-    *   **Database:** Supabase's PostgreSQL database to store user info, bank accounts, transactions, and invoice metadata.
-    *   **Authentication:** Supabase Auth for handling user sign-up and login, specifically leveraging its built-in Google OAuth provider for you and your wife.
-    *   **Storage:** Supabase Storage to temporarily hold uploaded invoices (scans/PDFs/images) before they are processed and potentially synced to Dropbox.
-    *   **Edge Functions:** Supabase Edge Functions (Deno-based serverless functions) are ideal for backend logic like parsing bank statements, running the matching algorithm, and handling the Dropbox synchronization, keeping the core logic close to the database.
-3.  **Dropbox Integration:** We'll use the official Dropbox API to connect the user's account (via OAuth) and upload the processed invoices and relevant transaction data.
-4.  **No CMS Needed:** As you suspected, a traditional CMS isn't necessary here. Supabase provides the database and backend functionalities required. Your "content" is user-generated financial data, which fits well within a standard database structure.
+**Data Model (Supabase - `public` schema):**
 
-**II. Data Model (Supabase Tables)**
+*   `profiles`: ([/] Partially Done - Exists, Needs Enhancement)
+    *   **Needs:**
+        *   `role` (text, e.g., 'user', 'accountant', default 'user')
+        *   `dropbox_access_token` (text, encrypted, nullable)
+        *   `dropbox_refresh_token` (text, encrypted, nullable)
+        *   `gdrive_access_token` (text, encrypted, nullable)
+        *   `gdrive_refresh_token` (text, encrypted, nullable)
+        *   `invited_by_user_id` (uuid, FK to `profiles.id`, nullable - for accountants)
+*   `bank_accounts`: **(New Table)** ([ ] Not Done)
+    *   `id`, `user_id`, `account_name`, `bank_identifier`, `account_number_last4`, `currency`, `created_at`, `updated_at`
+*   `statements`: ([/] Partially Done - Exists, Needs Enhancement)
+    *   **Needs:** `bank_account_id` FK, `status` enum ('uploaded', 'parsing', 'parsed', 'error').
+*   `transactions`: ([/] Partially Done - Exists, Needs Enhancement)
+    *   **Needs:** `bank_account_id` FK, `statement_id` FK, `ai_analysis_status`, `ai_extracted_vendor`, `ai_extracted_category`.
+    *   **Needs:** Deprecate `source_bank`.
+    *   **Needs:** Consider `has_multiple_invoices` (boolean, default false).
+*   `invoices`: ([/] Partially Done - Exists, Needs Enhancement)
+    *   **Needs:** Expanded `status` enum, `extracted_*`, `manual_*`, `nif_number`, `invoice_number`, `raw_text` fields.
+    *   **Needs:** `cloud_storage_status` (enum: 'pending_sync', 'syncing', 'synced', 'sync_error', default null).
+    *   **Needs:** `cloud_storage_path` (text, nullable).
+    *   **Needs:** `source` (enum: 'upload', 'dropbox', 'gdrive', default 'upload').
 
-We'll need a few key tables in our Supabase database:
+---
 
-*   `profiles`: Extends Supabase Auth users. Stores user-specific info like `id` (linked to `auth.users`), `full_name`, `avatar_url`, and potentially Dropbox API tokens (encrypted).
-*   `bank_accounts`: To track linked accounts. Fields: `id`, `user_id` (FK to `profiles`), `name` (e.g., "Revolut Business", "BPI Personal"), `type` (e.g., "Revolut", "BPI"), `last_imported_at`.
-*   `transactions`: Stores entries from bank statements. Fields: `id`, `bank_account_id` (FK to `bank_accounts`), `user_id` (FK to `profiles`), `transaction_date`, `description`, `amount`, `currency`, `vendor_guess` (optional, auto-extracted or manual), `invoice_id` (FK to `invoices`, nullable), `status` ('unmatched', 'matched', 'ignored').
-*   `invoices`: Stores info about uploaded invoices. Fields: `id`, `user_id` (FK to `profiles`), `uploaded_at`, `storage_path` (path in Supabase Storage), `dropbox_path` (path in Dropbox after sync), `file_name`, `file_type`, `amount` (extracted or manually entered), `currency`, `vendor` (extracted or manually entered), `invoice_date`, `transaction_id` (FK to `transactions`, nullable), `status` ('pending_match', 'matched', 'match_failed').
+**Development Phases:**
 
-**III. Key Features & Implementation Strategy**
+**Phase 1: Core Setup & Auth**
+*   [x] Initialize Next.js project.
+*   [x] Setup Supabase project.
+*   [x] Implement Google OAuth.
+*   [/] Create basic protected routes/layout.
+*   [x] Setup basic UI components.
 
-1.  **Authentication (Supabase Auth):**
-    *   Set up Google OAuth provider in Supabase.
-    *   Implement login/logout flow in the Next.js app using Supabase's client library (`@supabase/auth-helpers-nextjs`).
-    *   Protect pages/routes so only logged-in users can access them.
+**Phase 2: Foundational Data Model Enhancements**
+*   [ ] **Update `profiles` table schema:** Add `role`, encrypted token fields, `invited_by_user_id`. (Migration needed)
+*   [ ] **Create `bank_accounts` table schema.** (Migration needed)
+*   [ ] **Update `statements` table schema:** Add `bank_account_id` FK, `status` field. (Migration needed)
+*   [ ] **Update `transactions` table schema:** Add `bank_account_id` FK, `statement_id` FK, AI fields. Deprecate `source_bank`. Add `has_multiple_invoices` if desired. (Migration needed)
+*   [ ] **Update `invoices` table schema:** Add new statuses, extracted/manual fields, cloud sync fields, `source`. (Migration needed)
+*   [ ] **Implement Encryption:** Set up mechanism for encrypting/decrypting cloud storage tokens.
 
-2.  **Bank Statement Upload & Parsing (Next.js Frontend -> Supabase Edge Function):**
-    *   Frontend UI: A simple form to select the bank account and upload the statement file (CSV/OFX).
-    *   Backend Logic (Edge Function):
-        *   Accepts the file upload.
-        *   Identifies the bank (Revolut/BPI) based on the associated account or file content.
-        *   Uses a parsing library (like `papaparse` for CSV, or potentially a dedicated OFX parser if needed) to extract transactions (date, description, amount, currency).
-        *   Inserts the extracted transactions into the `transactions` table, linked to the correct `bank_account_id` and `user_id`. Mark status as 'unmatched'.
+**Phase 3: Multi-Account Management UI & Logic**
+*   [ ] Build UI form for adding bank accounts.
+*   [ ] Implement API route/Server Action (`/api/bank-accounts`) for saving accounts.
+*   [ ] Create UI page (`/bank-accounts`) to list accounts.
 
-3.  **Invoice Upload (Next.js Frontend -> Supabase Storage -> Edge Function):**
-    *   Frontend UI: An interface allowing users to upload invoice files (images, PDFs) using their phone or computer. Could use a library like `react-dropzone`.
-    *   Initial Upload: Upload the file directly to Supabase Storage from the client.
-    *   Metadata Entry: After upload, prompt the user to confirm/enter key details like `amount`, `vendor`, and `invoice_date`. *Self-correction: Initially, I considered OCR, but manual entry is much simpler to start. We can add OCR later as an enhancement.*
-    *   Backend Logic (Edge Function triggered by Storage event or called from frontend):
-        *   Creates an entry in the `invoices` table with the metadata and the `storage_path`. Mark status as 'pending_match'.
+**Phase 4: Cloud Storage Connection UI (Settings)**
+*   [ ] Add Settings page UI.
+*   [ ] Implement OAuth flow UI buttons ("Connect Dropbox", "Connect Google Drive").
+*   [ ] Create API routes (`/api/auth/[provider]/connect`, `/api/auth/[provider]/callback`) for OAuth flow and saving encrypted tokens.
+*   [ ] Add UI to show connection status and allow disconnection.
 
-4.  **Invoice-Transaction Matching (Supabase Edge Function):**
-    *   Trigger: This function can be triggered whenever a new 'unmatched' transaction is added or a new 'pending_match' invoice is added.
-    *   Logic:
-        *   Query relevant 'unmatched' transactions and 'pending_match' invoices for the user.
-        *   Attempt matching based on:
-            *   Exact `amount` match.
-            *   Close `vendor` name match (using string similarity algorithms if `vendor_guess` is available on transaction and `vendor` on invoice).
-            *   `transaction_date` being close to `invoice_date`.
-        *   If a confident match is found: Update the `status` on both records to 'matched', and link them using `invoice_id` and `transaction_id`.
-        *   If no match: Keep statuses as they are. We'll need a UI for manual matching later.
+**Phase 5: Adapt Statement Upload & Display for Multi-Account**
+*   [/] Update statement upload UI: Select `bank_account_id`, trigger parsing API.
+*   [/] Update transaction list UI: Filter/group by account.
+*   [/] Update statement list UI: Show associated account.
 
-5.  **Manual Matching UI (Next.js Frontend):**
-    *   Display lists of unmatched transactions and unmatched invoices.
-    *   Allow users to select one transaction and one invoice and manually link them. This will update the database records accordingly.
+**Phase 6: Statement Parsing Logic (Next.js API Route)**
+*   [ ] Create API Route (`/api/statements/parse`, Serverless recommended).
+*   [ ] Implement parsing logic for BPI/Revolut CSV.
+*   [ ] Insert transactions into DB via Supabase client.
+*   [ ] Call this API from frontend after upload.
 
-6.  **Dropbox Synchronization (Supabase Scheduled Edge Function):**
-    *   Setup: Users will need to authenticate with Dropbox via OAuth once in the app settings. Store the resulting access token securely (e.g., encrypted in the `profiles` table using Supabase secrets).
-    *   Logic (Scheduled Function, e.g., runs every 10 minutes):
-        *   Query for `invoices` with status 'matched' that haven't been synced yet (check `dropbox_path` is null or use a dedicated sync status flag).
-        *   For each invoice, fetch the corresponding transaction details.
-        *   Define a clear folder structure in Dropbox (e.g., `/ExpenseApp/YYYY/MM/Vendor/`).
-        *   Use the Dropbox API to upload the invoice file from Supabase Storage to the designated Dropbox path.
-        *   Optionally, upload a small metadata file (e.g., `invoice_details.json`) alongside the invoice with transaction info.
-        *   Update the `dropbox_path` field (or sync status flag) in the `invoices` table upon successful upload.
+**Phase 7: Invoice Processing from Cloud Storage (Input Sync - Cron)**
+*   [ ] Create Next.js API Route (`/api/sync/cloud-input`, Serverless).
+    *   Implement logic to check user's cloud storage input folder via API.
+    *   Find new files, download temporarily, upload to Supabase Storage.
+    *   Create `invoices` record in DB.
+    *   Move/delete processed file in user's cloud storage.
+    *   Trigger Invoice AI Extraction (Phase 9).
+*   [ ] Configure a Vercel Cron Job for this route.
 
-**IV. Development Phases (Suggestion)**
+**Phase 8: AI Transaction Analysis (Next.js API Route + Cron)**
+*   [ ] Create API Route (`/api/transactions/analyze-batch`, Serverless).
+*   [ ] Implement logic to call AI API for vendor/category extraction for pending transactions.
+*   [ ] Update `transactions` table.
+*   [ ] Configure Vercel Cron Job.
+*   [ ] Display AI results in UI.
 
-1.  **Phase 1: Core Setup & Auth:** Next.js project, Supabase setup, Google Auth working.
-2.  **Phase 2: Invoice Upload & Storage:** Build the invoice upload UI and logic to store files in Supabase Storage and metadata in the DB.
-3.  **Phase 3: Statement Upload & Parsing:** Build statement upload UI and the Edge Function parser for one bank format (e.g., Revolut CSV).
-4.  **Phase 4: Basic Matching & Display:** Implement the core matching logic (amount-based first) and display transactions/invoices with their status.
-5.  **Phase 5: Manual Matching:** Build the UI for manual linking.
-6.  **Phase 6: Dropbox Integration:** Implement Dropbox OAuth and the scheduled sync function.
-7.  **Phase 7: Refinements:** Add support for the second bank format (BPI), improve matching logic (vendor/date), enhance UI/UX, add error handling.
+**Phase 9: Invoice AI Extraction (Next.js API Route)**
+*   [ ] Create API Route (`/api/invoices/extract`, Serverless recommended).
+*   [ ] Implement logic to call OCR/AI service for pending invoices.
+*   [ ] Update `invoices` table with extracted data.
+*   [ ] Trigger this API from frontend (direct uploads) or Phase 7 (cloud sync).
+*   [ ] Update Invoice list UI.
 
-This plan provides a solid foundation using Next.js and Supabase. The key challenges will be handling the variations in bank statement formats and refining the automatic matching logic for accuracy. Starting simple and iterating is a good approach. What do you think of this plan?
+**Phase 10: Matching Engine & Reconciliation UI (Next.js API Route + Cron)**
+*   [ ] Create API Route (`/api/matching/run`, Serverless).
+*   [ ] Implement matching logic based on rules (amount, vendor, date, NIF).
+*   [ ] Update matched records in Supabase.
+*   [ ] Configure Vercel Cron Job.
+*   [/] Update UIs to reflect matches.
+*   [/] Build/Refine manual matching UI (side-by-side view).
+*   [ ] Add UI for editing invoice data.
+*   [x] Allow marking transactions as 'ignored'.
+*   [/] Implement/Update API routes/Server Actions for manual reconciliation.
+
+**Phase 11: Cloud Storage Export (Output Sync - Cron)**
+*   [ ] Create Next.js API Route (`/api/sync/cloud-output`, Serverless).
+    *   Implement logic to find 'matched' invoices pending sync.
+    *   Fetch linked transaction.
+    *   Determine standardized target cloud path/filename (handle multi-invoice).
+    *   Fetch file from Supabase Storage, upload via Dropbox/GDrive API.
+    *   Update `invoices` record status and path.
+*   [ ] Configure a Vercel Cron Job for this route.
+
+**Phase 12: Accountant Role & Access Control**
+*   [ ] **Backend:**
+    *   Implement RBAC checks in API routes/Server Actions.
+    *   Adjust Supabase RLS policies for read-only accountant access (scoped by `invited_by_user_id`, excluding sensitive fields).
+*   [ ] **Frontend:**
+    *   Create UI for users to invite accountants (creates profile, sends invite).
+    *   Adapt login/signup for accountants.
+    *   Conditionally render UI based on role.
+    *   Verify data filtering for accountants.
+
+**Phase 13: Refinements & Scalability**
+*   [ ] Add more bank parsers / configurable system.
+*   [ ] Improve AI prompts, matching, filename standardization.
+*   [ ] Add reporting/dashboards (considering accountant view).
+*   [ ] Optimize DB queries/indexes.
+
+**Phase 14: Monetization & Advanced Features (Future)**
+*   [ ] Tiered plans, etc.
+
+---
+
+**Next Steps:**
+
+1.  **Focus on Phase 2:** Implement the database schema changes via Supabase migrations.
+2.  **Proceed to Phase 3:** Build the UI and API logic for managing bank accounts.

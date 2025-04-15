@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import LoginButton from "./auth/LoginButton";
 import { ThemeToggle } from "./theme-toggle";
+import { Settings } from "lucide-react";
 
 export function Navigation() {
   const pathname = usePathname();
@@ -68,6 +69,14 @@ export function Navigation() {
             ))}
           </div>
           <div className="flex items-center gap-4">
+            {isAuthenticated && (
+              <Button variant="ghost" size="icon" asChild>
+                <Link href="/settings">
+                  <Settings className="h-5 w-5" />
+                  <span className="sr-only">Settings</span>
+                </Link>
+              </Button>
+            )}
             <ThemeToggle />
             {isAuthenticated ? <LogoutButton /> : <LoginButton />}
           </div>

@@ -14,7 +14,8 @@ interface Transaction {
 
 interface TransactionInsert {
   user_id: string;
-  source_bank: string;
+  bank_account_id: string;
+  statement_id: string;
   transaction_date: string;
   amount: number;
   currency: string;
@@ -27,7 +28,7 @@ interface TransactionInsert {
 
 interface RequestPayload {
   storagePath: string;
-  bankType: "REVOLUT" | "BPI";
+  bankAccountId: string;
 }
 
 export async function POST(req: Request) {
@@ -78,29 +79,62 @@ export async function POST(req: Request) {
     // 3. Get Input
     const payload: RequestPayload = await req.json();
     storagePath = payload.storagePath;
-    const { bankType } = payload;
-    console.log("🟢 API: Got payload:", { storagePath, bankType });
+    const { bankAccountId } = payload;
+    console.log("🟢 API: Got payload:", { storagePath, bankAccountId });
 
-    if (!storagePath || !bankType) {
+    if (!storagePath || !bankAccountId) {
       console.log("🔴 API: Missing payload data");
       return NextResponse.json(
-        { error: "Missing storagePath or bankType in request body" },
+        { error: "Missing storagePath or bankAccountId in request body" },
         { status: 400 }
       );
     }
 
-    // Get the statement record
+    // Get the bank account
+    const { data: bankAccount, error: bankAccountError } = await supabase
+      .from("bank_accounts")
+      .select("*")
+      .eq("id", bankAccountId)
+      .single();
+
+    if (bankAccountError || !bankAccount) {
+      console.error("Error fetching bank account:", bankAccountError);
+      return NextResponse.json(
+        { error: "Bank account not found" },
+        { status: 404 }
+      );
+    }
+
+    // Verify bank account belongs to user
+    if (bankAccount.user_id !== user.id) {
+      return NextResponse.json(
+        { error: "Bank account does not belong to user" },
+        { status: 403 }
+      );
+    }
+
+    // Create statement record
     const { data: statement, error: statementError } = await supabase
       .from("statements")
+      .insert({
+        user_id: user.id,
+        bank_account_id: bankAccountId,
+        storage_path: storagePath,
+        status: "parsing",
+        filename: storagePath.split("/").pop() || "unknown.xlsx",
+        source_bank: bankAccount.bank_type?.toLowerCase() || "other",
+        transactions_count: 0,
+      })
       .select()
-      .eq("storage_path", storagePath)
       .single();
 
     if (statementError) {
-      console.error("Error fetching statement:", statementError);
+      console.error("Error creating statement:", statementError);
       return NextResponse.json(
-        { error: "Statement not found" },
-        { status: 404 }
+        {
+          error: "Failed to create statement record: " + statementError.message,
+        },
+        { status: 500 }
       );
     }
 
@@ -124,7 +158,7 @@ export async function POST(req: Request) {
       .from("transactions")
       .select("*")
       .eq("user_id", user.id)
-      .in("source_bank", ["REVOLUT", "BPI"])
+      .eq("bank_account_id", bankAccountId)
       .order("transaction_date", { ascending: false });
 
     if (fetchError) {
@@ -140,7 +174,7 @@ export async function POST(req: Request) {
     let skippedCount = 0;
     let errorCount = 0;
 
-    if (bankType === "REVOLUT") {
+    if (bankAccount.bank_type === "revolut") {
       console.log(`Processing Revolut CSV`);
       const fileContent = await fileBlob.text();
       try {
@@ -165,8 +199,6 @@ export async function POST(req: Request) {
           processedCount++;
 
           try {
-            // Reduced logging: Removed logging for every raw row
-
             const completedDate = row["Date completed (UTC)"];
             if (!completedDate) {
               console.warn("Skipping row without completed date");
@@ -206,10 +238,6 @@ export async function POST(req: Request) {
               continue;
             }
 
-            // Removed strict check for row["State"] === "COMPLETED"
-            // Consider adding it back if necessary, but for now, prioritize getting data in.
-            // if (row["State"] !== "COMPLETED") { ... }
-
             // Check for duplicates
             const isDuplicate = existingDbTransactions?.some(
               (t: Transaction) =>
@@ -231,11 +259,12 @@ export async function POST(req: Request) {
             // Reduced logging: Log only the transaction being added if successful
             transactionsToInsert.push({
               user_id: user.id,
+              bank_account_id: bankAccountId,
+              statement_id: statement.id,
               transaction_date: transactionDateIso,
               description: description,
               amount: amount,
               currency: currency,
-              source_bank: "REVOLUT",
               source_id: storagePath,
             });
           } catch (rowError: any) {
@@ -258,7 +287,7 @@ export async function POST(req: Request) {
           { status: 500 }
         );
       }
-    } else if (bankType === "BPI") {
+    } else if (bankAccount.bank_type === "bpi") {
       console.log(`Processing BPI XLSX`);
       const fileBuffer = await fileBlob.arrayBuffer();
       try {
@@ -283,8 +312,6 @@ export async function POST(req: Request) {
           processedCount++;
 
           try {
-            // Reduced logging: Removed logging for every raw row
-
             const dateStr = row["Data Mov."];
             if (!dateStr) {
               console.warn("Skipping row without date", { row });
@@ -377,11 +404,12 @@ export async function POST(req: Request) {
 
             transactionsToInsert.push({
               user_id: user.id,
+              bank_account_id: bankAccountId,
+              statement_id: statement.id,
               transaction_date: transactionDateIso,
               description: description,
               amount: parsedAmount,
               currency: parsedCurrency,
-              source_bank: "BPI",
               source_id: storagePath,
             });
           } catch (rowError: any) {
@@ -404,9 +432,9 @@ export async function POST(req: Request) {
         );
       }
     } else {
-      console.error(`🔴 Unsupported bank type: ${bankType}`);
+      console.error(`🔴 Unsupported bank type: ${bankAccount.bank_type}`);
       return NextResponse.json(
-        { error: `Unsupported bank type: ${bankType}` },
+        { error: `Unsupported bank type: ${bankAccount.bank_type}` },
         { status: 400 }
       );
     }
@@ -428,7 +456,11 @@ export async function POST(req: Request) {
         if (insertError) {
           // If insertion fails, log the error and return 500 immediately
           console.error("🔴 Error inserting transactions:", insertError);
-          // No status update needed
+          // Update statement status to error
+          await supabase
+            .from("statements")
+            .update({ status: "error" })
+            .eq("id", statement.id);
           return NextResponse.json(
             {
               error: "Failed to insert transactions",
@@ -449,7 +481,7 @@ export async function POST(req: Request) {
         // finalCount remains 0
       }
 
-      // Update ONLY the transactions_count in the statement record
+      // Update statement record
       console.log(
         `🟢 Updating statement ${storagePath} with final count: ${finalCount}`
       );
@@ -457,9 +489,9 @@ export async function POST(req: Request) {
         .from("statements")
         .update({
           transactions_count: finalCount,
-          // No other fields to update!
+          status: "parsed",
         })
-        .eq("storage_path", storagePath);
+        .eq("id", statement.id);
 
       if (updateError) {
         console.error(
@@ -480,7 +512,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         message: `Statement processing finished for ${storagePath}.`,
         details: `File parsing: ${processedCount} rows processed, ${finalCount} inserted, ${skippedCount} duplicates skipped, ${errorCount} row parsing errors.`,
-        bankType: bankType,
+        bankType: bankAccount.bank_type,
         transactionCount: finalCount, // Return the final count
       });
     } catch (procError: any) {
@@ -489,7 +521,11 @@ export async function POST(req: Request) {
         "🔴 Error during transaction processing (insert/update):",
         procError
       );
-      // No status update needed
+      // Update statement status to error
+      await supabase
+        .from("statements")
+        .update({ status: "error" })
+        .eq("id", statement.id);
       return NextResponse.json(
         { error: `Processing error: ${procError.message}` },
         { status: 500 }

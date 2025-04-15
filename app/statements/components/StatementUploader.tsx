@@ -2,30 +2,66 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Icons } from "@/components/icons"; // Assuming you have an Icons component
-import { Loader2 } from "lucide-react";
+import { Upload, Loader2, PlusCircle } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
+import { useForm } from "@tanstack/react-form";
+import { z } from "zod";
 
 interface BankAccount {
   id: string;
-  name: string; // Assuming a 'name' column exists for display
-  type: string | null;
+  account_name: string;
+  bank_type: string | null;
   user_id: string;
 }
 
 interface UploadResponse {
   message: string;
   bankType: string;
-  processed: number;
-  inserted: number;
-  duplicates_skipped: number;
-  errors: number;
+  transactionCount: number;
+  details: string;
 }
+
+interface FormValues {
+  bankAccountId: string;
+  file: File | null;
+}
+
+const validateForm = ({ value }: { value: FormValues }) => {
+  if (!value.bankAccountId) {
+    return "Bank account is required";
+  }
+  if (!value.file) {
+    return "File is required";
+  }
+  return undefined;
+};
+
+const BANK_FILE_TYPES: Record<string, { format: string; extension: string }> = {
+  revolut: { format: "CSV", extension: ".csv" },
+  bpi: { format: "XLSX", extension: ".xlsx" },
+  // Add more banks here as needed
+};
 
 export default function StatementUploader() {
   const supabase = createClient();
-  const [file, setFile] = useState<File | null>(null);
+  const router = useRouter();
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
-  const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isFetchingAccounts, setIsFetchingAccounts] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +69,65 @@ export default function StatementUploader() {
   const [userId, setUserId] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const form = useForm({
+    defaultValues: {
+      bankAccountId: "",
+      file: null,
+    } as FormValues,
+    validators: {
+      onChange: validateForm,
+    },
+    onSubmit: async ({ value }) => {
+      if (!value.file || !value.bankAccountId || !userId) {
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+      setSuccessMessage(null);
+
+      try {
+        const fileName = `${Date.now()}-${value.file.name}`;
+        const filePath = `${userId}/${value.bankAccountId}/${fileName}`;
+
+        // 1. Upload file
+        const { error: uploadError } = await supabase.storage
+          .from("statements")
+          .upload(filePath, value.file);
+
+        if (uploadError) {
+          throw new Error(`Storage upload failed: ${uploadError.message}`);
+        }
+
+        // 2. Process statement
+        const response = await fetch("/api/process-statement", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            storagePath: filePath,
+            bankAccountId: value.bankAccountId,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to process statement");
+        }
+
+        const data: UploadResponse = await response.json();
+        setSuccessMessage(data.details);
+        form.reset();
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      } catch (err: any) {
+        setError(err.message || "An unexpected error occurred.");
+      } finally {
+        setIsLoading(false);
+      }
+    },
+  });
 
   // Fetch user ID and bank accounts on mount
   useEffect(() => {
@@ -58,7 +153,7 @@ export default function StatementUploader() {
 
       const { data, error: dbError } = await supabase
         .from("bank_accounts")
-        .select("id, name, type, user_id")
+        .select("id, account_name, bank_type, user_id")
         .eq("user_id", currentUserId);
 
       if (!isMounted) return;
@@ -67,10 +162,7 @@ export default function StatementUploader() {
       } else {
         setBankAccounts(data || []);
         if (data && data.length > 0) {
-          setSelectedAccountId(data[0].id);
-        } else {
-          // Optional: Set error if no bank accounts found?
-          // setError("No bank accounts found. Please add one first.");
+          form.setFieldValue("bankAccountId", data[0].id);
         }
       }
       setIsFetchingAccounts(false);
@@ -89,29 +181,23 @@ export default function StatementUploader() {
       const allowedTypes = [
         "text/csv",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "application/vnd.ms-excel", // Older Excel format
+        "application/vnd.ms-excel",
       ];
       if (!allowedTypes.includes(selectedFile.type)) {
         setError("Invalid file type. Please upload a CSV or XLSX file.");
-        setFile(null);
+        form.setFieldValue("file", null);
         return;
       }
-      setFile(selectedFile);
+      form.setFieldValue("file", selectedFile);
       setError(null);
       setSuccessMessage(null);
     } else {
-      setFile(null);
+      form.setFieldValue("file", null);
     }
   };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     handleFileSelect(event.target.files?.[0] || null);
-  };
-
-  const handleAccountChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedAccountId(event.target.value);
-    setError(null);
-    setSuccessMessage(null);
   };
 
   // Drag and Drop Handlers
@@ -128,7 +214,6 @@ export default function StatementUploader() {
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    // Style element on drag over maybe?
   };
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -136,214 +221,206 @@ export default function StatementUploader() {
     setIsDragging(false);
     const droppedFile = e.dataTransfer.files?.[0] || null;
     handleFileSelect(droppedFile);
-    // Clear the file input visually if using drag/drop
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
-  const triggerFileInput = () => {
-    fileInputRef.current?.click();
+  const getSelectedBankType = () => {
+    const selectedAccount = bankAccounts.find(
+      (account) => account.id === form.state.values.bankAccountId
+    );
+    return selectedAccount?.bank_type?.toLowerCase() || null;
   };
 
-  const handleUpload = useCallback(async () => {
-    if (!file) {
-      setError("Please select a statement file.");
-      return;
+  const getFileTypeText = () => {
+    const bankType = getSelectedBankType();
+    if (!bankType || !BANK_FILE_TYPES[bankType]) {
+      return "Please select a bank account";
     }
-    if (!selectedAccountId) {
-      setError("Please select a bank account.");
-      return;
+    const { format } = BANK_FILE_TYPES[bankType];
+    return `${format} file format required`;
+  };
+
+  const getAcceptedFileTypes = () => {
+    const bankType = getSelectedBankType();
+    if (!bankType || !BANK_FILE_TYPES[bankType]) {
+      return ".csv,.xlsx,.xls";
     }
-    if (!userId) {
-      setError("User ID not found. Cannot upload.");
-      return;
-    }
-    if (bankAccounts.length === 0) {
-      setError("No bank accounts available for upload.");
-      return;
-    }
+    return BANK_FILE_TYPES[bankType].extension;
+  };
 
-    setIsLoading(true);
-    setError(null);
-    setSuccessMessage(null);
-
-    try {
-      const fileName = `${Date.now()}-${file.name}`;
-      const filePath = `${userId}/${selectedAccountId}/${fileName}`;
-
-      // 1. Upload file
-      const { error: uploadError } = await supabase.storage
-        .from("statements")
-        .upload(filePath, file);
-
-      if (uploadError) {
-        throw new Error(`Storage upload failed: ${uploadError.message}`);
-      }
-
-      // 2. Invoke function
-      const { data: functionResponse, error: functionError } =
-        await supabase.functions.invoke<UploadResponse>("process-statement", {
-          body: { storagePath: filePath, bankAccountId: selectedAccountId },
-        });
-
-      if (functionError) {
-        let detailedError = functionError.message;
-        try {
-          const errorJson = JSON.parse(
-            functionError.context?.responseText || "{}"
-          );
-          if (errorJson.error)
-            detailedError = `Function error: ${errorJson.error}`;
-        } catch (e) {
-          /* Ignore */
-        }
-        throw new Error(detailedError);
-      }
-
-      if (functionResponse) {
-        const { message, inserted, processed, duplicates_skipped, errors } =
-          functionResponse;
-        let summary = `${message}. Processed: ${processed}, Inserted: ${inserted}, Skipped: ${duplicates_skipped}, Errors: ${errors}`;
-        setSuccessMessage(summary);
-        setFile(null); // Clear file input on success
-        if (fileInputRef.current) fileInputRef.current.value = ""; // Clear visually too
-      }
-    } catch (err: any) {
-      setError(err.message || "An unexpected error occurred.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [file, selectedAccountId, supabase, userId, bankAccounts]);
+  const handleAddBankAccount = () => {
+    router.push("/bank-accounts/new");
+  };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md w-full max-w-2xl mx-auto">
-      <h2 className="text-xl font-semibold mb-4">Upload New Statement</h2>
-
-      {/* Combined Dropzone and Fields */}
-      <div className="mb-4 space-y-4">
-        {/* Bank Account Selection */}
-        <div>
-          <label
-            htmlFor="bankAccount"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Select Bank Account
-          </label>
-          <select
-            id="bankAccount"
-            value={selectedAccountId}
-            onChange={handleAccountChange}
-            disabled={
-              isLoading || isFetchingAccounts || bankAccounts.length === 0
-            }
-            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isFetchingAccounts && <option>Loading accounts...</option>}
-            {!isFetchingAccounts && bankAccounts.length === 0 && (
-              <option value="" disabled>
-                No bank accounts found
-              </option>
-            )}
-            {!isFetchingAccounts &&
-              bankAccounts.map((account) => (
-                <option key={account.id} value={account.id}>
-                  {account.name ||
-                    `Account ID: ${account.id.substring(0, 6)}...`}{" "}
-                  ({account.type || "N/A"})
-                </option>
-              ))}
-          </select>
-        </div>
-
-        {/* Drag and Drop / File Input */}
-        <div>
-          <label
-            htmlFor="statementFile"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Statement File
-          </label>
-          <div
-            className={`mt-1 flex justify-center px-6 pt-5 pb-6 border-2 ${
-              isDragging
-                ? "border-indigo-500 bg-indigo-50"
-                : "border-gray-300 border-dashed"
-            } rounded-md cursor-pointer transition-colors duration-150 ease-in-out`}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-            onClick={triggerFileInput}
-          >
-            <div className="space-y-1 text-center pointer-events-none">
-              {" "}
-              {/* Pointer events none for children so div click works */}
-              <Icons.upload className="mx-auto h-12 w-12 text-gray-400" />
-              <div className="flex text-sm text-gray-600">
-                <span className="relative font-medium text-indigo-600 hover:text-indigo-500">
-                  Upload a file
-                </span>
-                <input
-                  ref={fileInputRef}
-                  id="statementFile"
-                  name="statementFile"
-                  type="file"
-                  className="sr-only"
-                  accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
-                  onChange={handleFileChange}
-                  disabled={isLoading}
-                />
-                <p className="pl-1">or drag and drop</p>
-              </div>
-              <p className="text-xs text-gray-500">CSV (Revolut), XLSX (BPI)</p>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        form.handleSubmit();
+      }}
+    >
+      <Card>
+        <CardHeader>
+          <CardTitle>Upload Statement</CardTitle>
+          <CardDescription>
+            Upload a bank statement to import transactions
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Bank Account Selection */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="bankAccount">Bank Account</Label>
+              {bankAccounts.length === 0 && !isFetchingAccounts && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddBankAccount}
+                  className="h-8"
+                >
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Add Bank Account
+                </Button>
+              )}
             </div>
+            <form.Field name="bankAccountId">
+              {(field) => (
+                <Select
+                  value={field.state.value}
+                  onValueChange={field.handleChange}
+                  disabled={
+                    isLoading || isFetchingAccounts || bankAccounts.length === 0
+                  }
+                >
+                  <SelectTrigger id="bankAccount">
+                    <SelectValue
+                      placeholder={
+                        isFetchingAccounts
+                          ? "Loading accounts..."
+                          : bankAccounts.length === 0
+                          ? "No bank accounts found"
+                          : "Select a bank account"
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {!isFetchingAccounts &&
+                      bankAccounts.map((account) => (
+                        <SelectItem key={account.id} value={account.id}>
+                          {account.account_name} ({account.bank_type || "N/A"})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </form.Field>
           </div>
-          {file && (
-            <p className="mt-2 text-sm text-gray-700">
-              Selected file: {file.name}
+
+          {/* File Upload Area */}
+          <div className="space-y-2">
+            <Label htmlFor="statementFile">Statement File</Label>
+            <form.Field name="file">
+              {(field) => (
+                <div
+                  className={`
+                    relative rounded-lg border-2 border-dashed p-6 transition-colors
+                    ${
+                      isDragging
+                        ? "border-primary bg-primary/5"
+                        : "border-muted"
+                    }
+                    ${isLoading ? "opacity-50" : "hover:bg-muted/5"}
+                    cursor-pointer
+                  `}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <input
+                    ref={fileInputRef}
+                    id="statementFile"
+                    type="file"
+                    className="sr-only"
+                    onChange={handleFileChange}
+                    accept={getAcceptedFileTypes()}
+                    disabled={isLoading || !form.state.values.bankAccountId}
+                  />
+                  <div className="flex flex-col items-center gap-2 text-center">
+                    <Upload className="h-8 w-8 text-muted-foreground" />
+                    <div className="text-sm">
+                      <span className="font-medium text-primary">
+                        Click to upload
+                      </span>{" "}
+                      or drag and drop
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {getFileTypeText()}
+                    </p>
+                    {field.state.value && (
+                      <p className="text-sm text-muted-foreground">
+                        Selected: {field.state.value.name}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </form.Field>
+          </div>
+
+          {/* Status Messages */}
+          {error && (
+            <p className="text-sm text-destructive bg-destructive/10 p-2 rounded">
+              {error}
             </p>
           )}
-        </div>
-      </div>
+          {successMessage && (
+            <p className="text-sm text-primary bg-primary/10 p-2 rounded">
+              {successMessage}
+            </p>
+          )}
 
-      {/* Status Messages */}
-      <div className="min-h-[2rem]">
-        {" "}
-        {/* Reserve space for messages */}
-        {isLoading && (
-          <div className="flex items-center text-sm text-blue-600">
-            <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4 text-blue-600" />
-            Processing statement...
-          </div>
-        )}
-        {error && (
-          <p className="text-sm text-red-600 bg-red-50 p-2 rounded">
-            Error: {error}
-          </p>
-        )}
-        {successMessage && (
-          <p className="text-sm text-green-600 bg-green-50 p-2 rounded">
-            {successMessage}
-          </p>
-        )}
-      </div>
-
-      {/* Upload Button */}
-      <div className="mt-4">
-        <button
-          onClick={handleUpload}
-          disabled={
-            isLoading ||
-            !file ||
-            !selectedAccountId ||
-            bankAccounts.length === 0
-          }
-          className="w-full inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isLoading ? "Processing..." : "Upload and Process Statement"}
-        </button>
-      </div>
-    </div>
+          {/* Upload Button */}
+          <form.Subscribe
+            selector={(state) => [
+              state.canSubmit,
+              state.isSubmitting,
+              state.values.file,
+              state.values.bankAccountId,
+            ]}
+          >
+            {([canSubmit, isSubmitting, file, bankAccountId]) => (
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={
+                  isLoading ||
+                  !file ||
+                  !bankAccountId ||
+                  bankAccounts.length === 0 ||
+                  !canSubmit
+                }
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Upload Statement
+                  </>
+                )}
+              </Button>
+            )}
+          </form.Subscribe>
+        </CardContent>
+      </Card>
+    </form>
   );
 }

@@ -17,6 +17,7 @@ import { useStatements, Statement } from "./hooks/useStatements";
 import { StatementTableRow } from "./components/StatementTableRow";
 import { DeleteConfirmationDialog } from "./components/DeleteConfirmationDialog";
 import { StatementDetailsDialog } from "./components/StatementDetailsDialog";
+import StatementUploadDialog from "./components/StatementUploadDialog";
 
 export default function StatementsPage() {
   const {
@@ -57,14 +58,15 @@ export default function StatementsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container py-6">
       <PageHeader
         title="Bank Statements"
         description="Manage your bank statements and import transactions"
         action={{
           label: "Upload Statement",
-          href: "/statements/upload",
           icon: Upload,
+          onClick: () =>
+            document.getElementById("upload-statement-trigger")?.click(),
         }}
       />
 
@@ -74,8 +76,9 @@ export default function StatementsPage() {
           description="Upload your first bank statement to get started"
           action={{
             label: "Upload Statement",
-            href: "/statements/upload",
             icon: Upload,
+            onClick: () =>
+              document.getElementById("upload-statement-trigger")?.click(),
           }}
         />
       ) : (
@@ -108,6 +111,14 @@ export default function StatementsPage() {
           </Table>
         </div>
       )}
+
+      <StatementUploadDialog
+        trigger={
+          <Button id="upload-statement-trigger" className="hidden">
+            Upload Statement
+          </Button>
+        }
+      />
 
       {/* Render Delete Confirmation Dialog Component */}
       <DeleteConfirmationDialog
