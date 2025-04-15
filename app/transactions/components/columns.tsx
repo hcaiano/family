@@ -97,7 +97,7 @@ export const columns: ColumnDef<Transaction>[] = [
       return vendor ? (
         <div className="flex items-center gap-1">
           <span>{vendor.name}</span>
-          {vendor.is_subscription && <Badge className="text-xs h-5">Sub</Badge>}
+          {vendor.is_subscription && <Badge>Sub</Badge>}
         </div>
       ) : (
         <span className="text-muted-foreground">Not assigned</span>
@@ -128,13 +128,7 @@ export const columns: ColumnDef<Transaction>[] = [
     cell: ({ row }) => {
       const status = row.getValue("status") as string;
       return (
-        <Badge
-          className={cn(
-            "text-xs h-5",
-            status === "matched" ? "bg-green-500" : "bg-red-500",
-            "text-white"
-          )}
-        >
+        <Badge colorScheme={status === "matched" ? "green" : "red"}>
           {status === "matched" ? "Matched" : "Unmatched"}
         </Badge>
       );

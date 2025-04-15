@@ -99,9 +99,7 @@ export default function TransactionsPage() {
         return vendor ? (
           <div className="flex items-center gap-1">
             <span>{vendor.name}</span>
-            {vendor.is_subscription && (
-              <Badge className="text-xs h-5">Sub</Badge>
-            )}
+            {vendor.is_subscription && <Badge>Sub</Badge>}
           </div>
         ) : (
           <span className="text-muted-foreground">Not assigned</span>
